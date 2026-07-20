@@ -1,0 +1,25 @@
+{
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.tabSize": 4
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.tabSize": 4
+    },
+    "[json]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.tabSize": 4
+    },
+    "[css]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "typescript.preferences.preferTypeOnlyAutoImports": true,
+    "oxc.typeAware": true,
+    "prettier.requireConfig": true,
+    "files.exclude": {
+        // Generated d.ts, which is not useful since all tsconfig emits there.
+        "dist-ts": true,
+        "coverage": true
+    }
+}
