@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 interface AppProps {
     children?: ReactNode;
@@ -13,6 +14,9 @@ export default function App({ children }: AppProps) {
                         mailmeilmheilmueil
                     </a>
                     <span className="ml-4 text-sm text-base-content/60">공유 메일 홍보 검토함</span>
+                    <Link className="btn btn-primary btn-sm ml-auto" to="/login">
+                        강남대 메일 로그인
+                    </Link>
                 </div>
             </header>
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">{children}</main>

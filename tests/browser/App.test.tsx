@@ -1,9 +1,12 @@
 import { Timestamp } from "firebase/firestore";
 import { cleanup, render } from "vitest-browser-react/pure";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import { type MailItem } from "@/lib/mail-schema";
 import Home from "@/pages/Home";
+import App from "@/App";
 import MailReviewPanel from "@/components/MailReviewPanel";
+import Login from "@/pages/Login";
 
 vi.mock("@/lib/firebase", () => ({
     subscribeToMailItems: (onItems: (items: MailItem[]) => void) => {
@@ -59,4 +62,41 @@ test("shows original mail, structured analysis, draft, warning, and review actio
 test("shows the exact empty inbox message", async () => {
     const screen = await render(<Home />);
     await expect.element(screen.getByText("아직 수신된 메일이 없습니다. 테스트 메일을 보내면 여기에서 검토할 수 있습니다.")).toBeVisible();
+});
+
+test("shows the Kangnam mail login placeholder", async () => {
+    const screen = await render(
+        <MemoryRouter>
+            <Login />
+        </MemoryRouter>
+    );
+    await expect.element(screen.getByRole("heading", { name: "강남대학교 메일 로그인" })).toBeVisible();
+    await expect.element(screen.getByLabelText("강남대 ID")).toBeVisible();
+    await expect.element(screen.getByLabelText("비밀번호")).toHaveAttribute("type", "password");
+    await expect.element(screen.getByText("mail.kangnam.ac.kr:993 (IMAP SSL/TLS)")).toBeVisible();
+    await expect.element(screen.getByRole("button", { name: "메일함 연결" })).toBeVisible();
+    await expect.element(screen.getByRole("link", { name: "테스트 메일함으로 계속" })).toHaveAttribute("href", "/");
+});
+
+test("clears the password and shows the IMAP placeholder message", async () => {
+    const screen = await render(
+        <MemoryRouter>
+            <Login />
+        </MemoryRouter>
+    );
+    const password = screen.getByLabelText("비밀번호");
+    await screen.getByLabelText("강남대 ID").fill("test-user");
+    await password.fill("test-password");
+    await screen.getByRole("button", { name: "메일함 연결" }).click();
+    await expect.element(screen.getByRole("alert")).toHaveTextContent("IMAP 연결 기능을 준비 중입니다. 현재는 테스트 메일함을 사용해 주세요.");
+    await expect.element(password).toHaveValue("");
+});
+
+test("shows the Kangnam login entry point in the app header", async () => {
+    const screen = await render(
+        <MemoryRouter>
+            <App />
+        </MemoryRouter>
+    );
+    await expect.element(screen.getByRole("link", { name: "강남대 메일 로그인" })).toHaveAttribute("href", "/login");
 });

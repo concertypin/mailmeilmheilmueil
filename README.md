@@ -60,6 +60,25 @@ pnpm lint                # oxlint
 pnpm build               # 운영용 프론트엔드 빌드
 ```
 
+## VM 배포
+
+기존 Linux VM에 SSH 접속이 가능하고 `/opt/mailmeilmheilmueil`과 systemd 서비스가 준비되어 있을 때, PowerShell에서 다음처럼 배포합니다. 호스트와 SSH 키는 환경 변수로만 전달하며 저장소에 기록하지 않습니다.
+
+```powershell
+$env:DEPLOY_HOST = "your-server-host"
+$env:DEPLOY_USER = "root"
+$env:DEPLOY_SSH_KEY = "$HOME\.ssh\your-key"
+pnpm deploy:vm
+```
+
+선택적 환경 변수:
+
+- `DEPLOY_PORT` (기본값 `22`)
+- `DEPLOY_PATH` (기본값 `/opt/mailmeilmheilmueil`)
+- `DEPLOY_SERVICE` (기본값 `mailmeilmheilmueil.service`)
+
+스크립트는 로컬 빌드, `dist/`·서버 소스·스크립트·패키지 파일 업로드, 원격 `pnpm install --frozen-lockfile`, systemd 재시작, 로컬 `/healthz` 확인을 순서대로 수행합니다. 원격 `.env`, Firebase 서비스 계정, Codex 인증 파일은 업로드하지 않습니다.
+
 ## 운영 주의사항
 
 - 현재 SMTP 서버는 테스트용으로 `127.0.0.1:2525`에만 바인딩되며 외부 메일 수신용이 아닙니다.

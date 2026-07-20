@@ -20,7 +20,8 @@
         "pre-commit": "pnpm run format && pnpm run lint && git add -u",
         "test": "vitest run",
         "emulators": "firebase emulators:start --only firestore --project demo-mailmeilmheilmueil",
-        "demo:send-sample": "tsx scripts/send-sample-mail.ts"
+        "demo:send-sample": "tsx scripts/send-sample-mail.ts",
+        "deploy:vm": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-vm.ps1"
     },
     "engines": {
         "node": ">=22"
