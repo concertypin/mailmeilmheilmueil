@@ -11,9 +11,9 @@ export default function App({ children }: AppProps) {
             <header className="border-b border-base-300 bg-base-100">
                 <div className="navbar mx-auto max-w-7xl px-4 sm:px-6">
                     <a className="text-xl font-bold" href="/">
-                        mailmeilmheilmueil
+                        메일렌즈
                     </a>
-                    <span className="ml-4 text-sm text-base-content/60">공유 메일 홍보 검토함</span>
+                    <span className="ml-4 text-sm text-base-content/60">메일 홍보 검토함</span>
                     <Link className="btn btn-primary btn-sm ml-auto" to="/login">
                         강남대 메일 로그인
                     </Link>

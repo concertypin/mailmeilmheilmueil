@@ -65,6 +65,8 @@
         "firebase": "^12.16.0",
         "firebase-admin": "^14.2.0",
         "hono": "^4.12.31",
+        "imapflow": "^1.4.7",
+        "node-html-parser": "^9.0.0",
         "postal-mime": "^2.7.5",
         "preact": "^10.29.7",
         "react": "^19.2.7",
