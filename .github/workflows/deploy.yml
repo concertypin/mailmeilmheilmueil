@@ -1,42 +1,54 @@
-# https://github.com/actions/starter-workflows/blob/main/pages/vite.yml
-name: Deploy to GitHub Pages
+name: Deploy SMTP receiver
 
 on:
-    # Disabled: uncomment to enable automatic deployment
-    # push:
-    #   branches: ["main"]
-    # workflow_dispatch:
+  workflow_run:
+    workflows: ["Tests"]
+    branches:
+      - main
+    types:
+      - completed
 
 permissions:
-    contents: read
-    pages: write
-    id-token: write
+  contents: read
 
 concurrency:
-    group: "pages"
-    cancel-in-progress: true
+  group: do-smtp-production
+  cancel-in-progress: false
 
 jobs:
-    deploy:
-        environment:
-            name: github-pages
-            url: ${{ steps.deployment.outputs.page_url }}
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 20
-            - uses: pnpm/action-setup@v4
-              with:
-                  version: latest
-            - name: Install dependencies
-              run: pnpm install
-            - name: Build
-              run: pnpm build
-            - uses: actions/configure-pages@v4
-            - uses: actions/upload-pages-artifact@v3
-              with:
-                  path: "dist"
-            - id: deployment
-              uses: actions/deploy-pages@v4
+  deploy:
+    if: >
+      github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup pnpm Environment
+        uses: concertypin/action/pnpm-install@master
+
+      - name: Setup SSH key and known hosts
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "$DEPLOY_SSH_PRIVATE_KEY" > "$RUNNER_TEMP/deploy_key"
+          chmod 600 "$RUNNER_TEMP/deploy_key"
+          echo "DEPLOY_SSH_KEY=$RUNNER_TEMP/deploy_key" >> "$GITHUB_ENV"
+          echo "$DEPLOY_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy to DigitalOcean
+        run: pnpm deploy:vm
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_SERVICE: ${{ secrets.DEPLOY_SERVICE }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}

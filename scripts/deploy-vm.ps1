@@ -23,29 +23,27 @@ if (-not [string]::IsNullOrWhiteSpace($SshKey)) {
     $ScpOptions += @("-i", $SshKey)
 }
 
-Write-Host "Building the application..."
-& pnpm build
-if ($LASTEXITCODE -ne 0) {
-    throw "pnpm build failed."
-}
-
 Write-Host "Preparing ${Remote}:$DeployPath..."
-& ssh @SshOptions $Remote "mkdir -p '$DeployPath/dist' '$DeployPath/server' '$DeployPath/scripts'"
+& ssh @SshOptions $Remote "mkdir -p '$DeployPath/server' '$DeployPath/scripts' '$DeployPath/src/lib'"
 if ($LASTEXITCODE -ne 0) {
     throw "Remote directory preparation failed."
 }
 
 Write-Host "Uploading application files..."
-& scp @ScpOptions -r "dist" "server" "scripts" "package.json" "pnpm-lock.yaml" "${Remote}:$DeployPath/"
+& scp @ScpOptions -r "server" "scripts" "package.json" "pnpm-lock.yaml" "${Remote}:$DeployPath/"
 if ($LASTEXITCODE -ne 0) {
     throw "Application upload failed."
 }
+& scp @ScpOptions "src/lib/mail-schema.ts" "${Remote}:$DeployPath/src/lib/mail-schema.ts"
+if ($LASTEXITCODE -ne 0) {
+    throw "Schema file upload failed."
+}
 
 Write-Host "Installing dependencies and restarting $DeployService..."
-$RemoteCommand = "cd '$DeployPath' && pnpm install --frozen-lockfile && systemctl restart '$DeployService' && for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do curl --fail --silent --show-error http://127.0.0.1:8787/healthz && exit 0; sleep 2; done; exit 1"
+$RemoteCommand = "cd '$DeployPath' && systemctl show '$DeployService' --property=ExecStart --value | grep -Fq -- 'start:smtp' && pnpm install --frozen-lockfile && systemctl restart '$DeployService' && sleep 2 && systemctl is-active --quiet '$DeployService'"
 & ssh @SshOptions $Remote $RemoteCommand
 if ($LASTEXITCODE -ne 0) {
-    throw "Remote installation, restart, or health check failed."
+    throw "Remote installation, restart, or service activation check failed."
 }
 
 Write-Host "Deployment completed successfully."
