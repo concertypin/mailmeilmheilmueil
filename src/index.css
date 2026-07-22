@@ -1,2 +1,7 @@
 @import "tailwindcss";
-@plugin "daisyui";
+@import "./theme/light.css";
+@import "./theme/dark.css";
+
+@plugin "daisyui" {
+    themes: false;
+}

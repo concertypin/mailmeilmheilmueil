@@ -82,13 +82,10 @@ export default defineConfig(({ mode }) => ({
         sourcemap: true,
     },
     clearScreen: false,
-    plugins: [...[frameworkPlugins].flat(), spaCopyPlugin(["/"])],
+    plugins: [frameworkPlugins, spaCopyPlugin(["/"])],
     resolve: resolveAlias,
     server: {
         open: "index.html",
-        proxy: {
-            "/api": "http://127.0.0.1:8787",
-        },
     },
     test: testConfig,
 }));

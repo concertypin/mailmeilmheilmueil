@@ -5,7 +5,7 @@ All agents, such as Claude Code, should keep `**/AGENTS.md` in mind.
 
 ## Project Type
 
-This is a **Preact SPA template** built with Vite. Source imports use the React-compatible module contract so the runtime can be switched between Preact and real React by a single build toggle. It uses a custom Vite plugin to copy `index.html` to route directories at build time, enabling static hosting on GitHub Pages and local `file://` viewing without a HashRouter or Node-based SSR.
+This is a **Preact SPA template** built with Vite. Source imports use the React-compatible module contract so the runtime can be switched between Preact and real React by a single build toggle. It uses a custom Vite plugin to copy `index.html` to route directories at build time for HTTP static hosting and GitHub Pages fallback. The current frontend uses local mock mail data; Firestore, API, and server-backed mail synchronization are reserved for a later integration.
 
 ## Development Commands
 
@@ -29,9 +29,9 @@ pnpm test
 ## Architecture
 
 - **Framework toggle**: `vite.config.ts` has a top-level `const usePreact = true`. When `true`, `@preact/preset-vite` aliases `react`, `react-dom`, and `react/jsx-runtime` to `preact/compat`. When `false`, `@vitejs/plugin-react` uses the real React packages (already installed as dependencies). The plugins array normalizes both single-Plugin and Plugin[] returns via `[frameworkPlugins].flat()`.
-- **Entry point**: `src/index.tsx` — Mounts the app using `createRoot` from `react-dom/client`. On `file://` protocol it renders without `BrowserRouter`; on HTTP it uses `react-router-dom` for full SPA navigation.
-- **Routing**: Uses `react-router-dom` for HTTP (clean History API URLs) and a simple `__SPA_ROUTE__`-based approach for `file://` (full page navigations to copied `index.html` files).
-- **Build plugin**: A custom Vite plugin (`spaCopyPlugin` in `vite.config.ts`) copies `dist/index.html` to `dist/404.html` (GitHub Pages fallback) and route-specific directories (e.g. `dist/about/index.html`), injecting `window.__SPA_ROUTE__` for `file://` support.
+- **Entry point**: `src/index.tsx` — Mounts the app using `createRoot` from `react-dom/client` and renders the Wouter route switch.
+- **Routing**: Uses `wouter` with browser History API routes for `/`, `/inbox`, `/contacts`, and `/mails/:mailId`. The frontend is served over HTTP; `file://` navigation is intentionally unsupported.
+- **Build plugin**: A custom Vite plugin (`spaCopyPlugin` in `vite.config.ts`) copies `dist/index.html` to `dist/404.html` for GitHub Pages fallback.
 - **ES modules** throughout (`"type": "module"` in package.json)
 - **Output format**: Generates SPA files in the `dist/` directory with relative asset paths (`base: "./"`).
 - **Type definitions**: TypeScript throughout with `@types/react` providing the stable type contract for both framework modes.
