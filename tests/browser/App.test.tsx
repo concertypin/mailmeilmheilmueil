@@ -1,19 +1,12 @@
 import { Timestamp } from "firebase/firestore";
 import { cleanup, render } from "vitest-browser-react/pure";
-import { MemoryRouter } from "react-router-dom";
+import { Router } from "wouter";
+import { memoryLocation } from "wouter/memory-location";
 import { afterEach, expect, test, vi } from "vitest";
 import { type MailItem } from "@/lib/mail-schema";
 import Home from "@/pages/Home";
 import App from "@/App";
 import MailReviewPanel from "@/components/MailReviewPanel";
-
-vi.mock("@/lib/firebase", () => ({
-    subscribeToMailItems: (onItems: (items: MailItem[]) => void) => {
-        onItems([]);
-        return () => undefined;
-    },
-    subscribeToMailItem: () => () => undefined,
-}));
 
 afterEach(async () => {
     await cleanup();
@@ -58,6 +51,7 @@ test("shows original mail, structured analysis, draft, warning, and review actio
             })
         )
         .toBeVisible();
+    await screen.getByRole("button", { name: /AI 분석 결과/ }).click();
     await expect.element(screen.getByText("직업훈련")).toBeVisible();
     await expect.element(screen.getByText("2026-07-31")).toBeVisible();
     await expect
@@ -70,39 +64,46 @@ test("shows original mail, structured analysis, draft, warning, and review actio
         )
         .toBeVisible();
     await expect
-        .element(screen.getByText("데이터 분석 직무교육 참가자를 모집합니다."))
-        .toBeVisible();
+        .element(screen.getByRole("textbox", { name: "홍보 문안 초안" }))
+        .toHaveValue("데이터 분석 직무교육 참가자를 모집합니다.");
     await expect
-        .element(screen.getByRole("button", { name: "검토 완료로 표시" }))
+        .element(screen.getByRole("button", { name: "검토 완료" }))
         .toBeVisible();
 });
 
-test("shows the exact empty inbox message", async () => {
-    const screen = await render(<Home />);
-    await expect
-        .element(
-            screen.getByText(
-                "아직 수신된 메일이 없습니다. 새 메일이 도착하면 자동으로 여기에서 검토할 수 있습니다."
-            )
-        )
-        .toBeVisible();
-});
-
-test("describes automatic collection without login or manual sync controls", async () => {
+test("shows the local mock inbox", async () => {
+    const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     const screen = await render(
-        <MemoryRouter>
+        <Router hook={hook} searchHook={searchHook}>
+            <Home />
+        </Router>
+    );
+    await expect
+        .element(screen.getByText("2026학년도 비교과 프로그램 참가자 모집"))
+        .toBeVisible();
+});
+
+test("shows mail search and draft creation controls", async () => {
+    const { hook, searchHook } = memoryLocation({ path: "/inbox" });
+    const screen = await render(
+        <Router hook={hook} searchHook={searchHook}>
             <App>
                 <Home />
             </App>
-        </MemoryRouter>
+        </Router>
     );
     await expect
-        .element(
-            screen.getByText(
-                "새로 수신된 메일을 자동으로 가져와 AI로 분석하고 홍보 초안을 검토합니다."
-            )
-        )
+        .element(screen.getByRole("heading", { name: "받은메일함" }))
         .toBeVisible();
-    expect(document.querySelector('a[href="/login"]')).toBeNull();
-    expect(document.querySelectorAll("button")).toHaveLength(0);
+    await screen.getByRole("button", { name: /홍보 메일 검토/ }).click();
+    await expect
+        .element(screen.getByRole("heading", { name: "홍보 메일 검토" }))
+        .toBeVisible();
+    await expect
+        .element(screen.getByRole("button", { name: "홍보 초안 작성" }))
+        .toBeDisabled();
+    await screen.getByRole("button", { name: /발송 대기/ }).click();
+    await expect
+        .element(screen.getByRole("heading", { name: "발송대기함" }))
+        .toBeVisible();
 });

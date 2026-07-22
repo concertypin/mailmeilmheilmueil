@@ -28,7 +28,9 @@ function shutdown(signal: string): void {
         clearTimeout(forceExit);
         if (error) {
             process.exitCode = 1;
-            process.stderr.write(`HTTP server shutdown failed: ${String(error)}\n`);
+            process.stderr.write(
+                `HTTP server shutdown failed: ${String(error)}\n`
+            );
         }
     });
 }

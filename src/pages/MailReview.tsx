@@ -1,52 +1,113 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { subscribeToMailItem } from "@/lib/firebase";
+import { useState } from "react";
+import { Link, useLocation, useParams, useSearchParams } from "wouter";
+import { findMockMailItem } from "@/lib/mock-mail";
 import type { MailItem } from "@/lib/mail-schema";
+import { useMailWorkspace } from "@/lib/mail-workspace";
 import MailReviewPanel from "@/components/MailReviewPanel";
 
 export default function MailReview() {
     const { mailId } = useParams();
-    const [item, setItem] = useState<MailItem | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [searchParams] = useSearchParams();
+    const [, navigate] = useLocation();
+    const { markReviewed: moveToOutbox } = useMailWorkspace();
+    const isReviewMode = searchParams.get("mode") === "review";
+    const [item, setItem] = useState<MailItem | null>(() =>
+        mailId ? findMockMailItem(mailId) : null
+    );
     const [reviewError, setReviewError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (!mailId) {
-            setError("메일 ID가 없습니다.");
-            setLoading(false);
-            return undefined;
-        }
-        const unsubscribe = subscribeToMailItem(
-            mailId,
-            (nextItem) => {
-                setItem(nextItem);
-                setLoading(false);
-            },
-            (nextError) => {
-                setError(nextError.message);
-                setLoading(false);
-            }
-        );
-        return unsubscribe;
-    }, [mailId]);
-
-    async function markReviewed(): Promise<void> {
-        if (!mailId) return;
+    function markReviewed(): Promise<void> {
         setReviewError(null);
-        const response = await fetch(`/api/mails/${encodeURIComponent(mailId)}/review`, { method: "POST" });
-        if (!response.ok) {
-            setReviewError("아직 검토할 수 없는 메일입니다. 잠시 후 다시 시도해 주세요.");
+        if (!item || item.status !== "ready") {
+            setReviewError("아직 검토할 수 없는 메일입니다.");
+            return Promise.resolve();
         }
+        setItem({ ...item, status: "reviewed", reviewedAt: item.receivedAt });
+        moveToOutbox(item.id);
+        navigate("/inbox?folder=outbox");
+        return Promise.resolve();
     }
 
     return (
-        <div className="space-y-6">
-            <Link className="btn btn-ghost btn-sm" to="/">← 메일함으로</Link>
-            {loading && <div className="skeleton h-56 w-full" />}
-            {error && <div role="alert" className="alert alert-error"><span>{error}</span></div>}
-            {!loading && !error && !item && <div role="alert" className="alert alert-warning"><span>메일을 찾을 수 없습니다.</span></div>}
-            {item && <MailReviewPanel item={item} onReview={markReviewed} reviewError={reviewError} />}
+        <div className="space-y-6 px-6 py-8 sm:px-8 lg:px-10">
+            <Link className="btn btn-ghost btn-sm" href="/inbox">
+                ← 메일함으로
+            </Link>
+            {!item && (
+                <div role="alert" className="alert alert-warning">
+                    <span>메일을 찾을 수 없습니다.</span>
+                </div>
+            )}
+            {item &&
+                (isReviewMode ? (
+                    <MailReviewPanel
+                        item={item}
+                        onReview={markReviewed}
+                        reviewError={reviewError}
+                    />
+                ) : (
+                    <section className="card border border-base-300 bg-base-100 shadow-sm">
+                        <div className="card-body p-0">
+                            <div className="flex flex-wrap gap-2 border-b border-base-300 px-6 py-4">
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    type="button"
+                                >
+                                    답장
+                                </button>
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    type="button"
+                                >
+                                    전체 답장
+                                </button>
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    type="button"
+                                >
+                                    전달
+                                </button>
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    type="button"
+                                >
+                                    삭제
+                                </button>
+                            </div>
+                            <article className="p-6 sm:p-8">
+                                <h1 className="text-3xl font-semibold">
+                                    {item.subject}
+                                </h1>
+                                <div className="mt-6 border-y border-base-300 py-5 text-sm">
+                                    <p>
+                                        <span className="text-base-content/60">
+                                            보낸사람
+                                        </span>{" "}
+                                        {item.senderName} &lt;
+                                        {item.senderAddress}&gt;
+                                    </p>
+                                    <p className="mt-2">
+                                        <span className="text-base-content/60">
+                                            받는사람
+                                        </span>{" "}
+                                        {item.recipients.join(", ")}
+                                    </p>
+                                    <p className="mt-2">
+                                        <span className="text-base-content/60">
+                                            수신시각
+                                        </span>{" "}
+                                        {item.receivedAt
+                                            .toDate()
+                                            .toLocaleString("ko-KR")}
+                                    </p>
+                                </div>
+                                <div className="min-h-96 whitespace-pre-wrap py-8 leading-8">
+                                    {item.textBody}
+                                </div>
+                            </article>
+                        </div>
+                    </section>
+                ))}
         </div>
     );
 }

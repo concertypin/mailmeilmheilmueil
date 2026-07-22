@@ -24,7 +24,13 @@ export interface FirestoreTimestamp {
 }
 
 const timestampSchema = z.custom<FirestoreTimestamp>(
-    (value) => Boolean(value && typeof value === "object" && "toDate" in value && "toMillis" in value),
+    (value) =>
+        Boolean(
+            value &&
+            typeof value === "object" &&
+            "toDate" in value &&
+            "toMillis" in value
+        ),
     "Expected a Firestore timestamp"
 );
 

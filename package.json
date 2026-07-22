@@ -9,9 +9,7 @@
         "url": "https://github.com/concertypin"
     },
     "scripts": {
-        "dev": "concurrently -k \"pnpm:dev:client\" \"pnpm:dev:server\"",
-        "dev:client": "vite",
-        "dev:server": "tsx watch server/src/main.ts",
+        "dev": "vite",
         "build": "vite build",
         "heroku-postbuild": "vite build --mode heroku",
         "start": "tsx server/src/main.ts",
@@ -25,7 +23,7 @@
         "emulators": "firebase emulators:start --only firestore --project demo-mailmeilmheilmueil"
     },
     "engines": {
-        "node": "22.x"
+        "node": ">=24"
     },
     "devDependencies": {
         "@preact/preset-vite": "^2.10.5",
@@ -36,6 +34,7 @@
         "@vitejs/plugin-react": "^6.0.3",
         "@vitest/browser-playwright": "^4.1.10",
         "@vitest/coverage-v8": "^4.1.10",
+        "agentation": "^3.0.2",
         "concurrently": "^10.0.3",
         "cross-env": "^10.1.0",
         "daisyui": "^5.6.18",
@@ -57,6 +56,7 @@
     "dependencies": {
         "@ai-sdk/openai": "^4.0.17",
         "@hono/node-server": "^2.0.10",
+        "@phosphor-icons/react": "^2.1.10",
         "ai": "^7.0.31",
         "ai-sdk-provider-codex-cli": "^2.1.1",
         "dotenv": "^17.4.2",
@@ -69,8 +69,8 @@
         "preact": "^10.29.7",
         "react": "^19.2.7",
         "react-dom": "^19.2.7",
-        "react-router-dom": "^7.18.1",
         "tsx": "^4.23.1",
+        "wouter": "^3.10.0",
         "zod": "^4.4.3"
     }
 }
