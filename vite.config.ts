@@ -75,8 +75,8 @@ const frameworkPlugins = usePreact
     ? preact({ jsxImportSource: "react", reactAliasesEnabled: true })
     : reactPlugin();
 
-export default defineConfig({
-    base: "./",
+export default defineConfig(({ mode }) => ({
+    base: mode === "heroku" ? "/" : "./",
     build: {
         outDir: "dist",
         sourcemap: true,
@@ -91,4 +91,4 @@ export default defineConfig({
         },
     },
     test: testConfig,
-});
+}));

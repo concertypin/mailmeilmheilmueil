@@ -1,11 +1,7 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { describe, expect, it, vi } from "vitest";
 import { MailAnalysisSchema, type MailItem } from "../../src/lib/mail-schema";
-import {
-    parseMailMessage,
-    parseMailSource,
-    persistParsedMail,
-} from "../../server/src/smtp-receiver";
+import { parseMailSource } from "../../server/src/mail-parser";
 import {
     AI_FAILURE_MESSAGE,
     processMailItem,
@@ -18,15 +14,14 @@ import {
     ImapUnavailableError,
     syncInbox,
     type ImapClient,
-    type ImapCredentials,
 } from "../../server/src/imap";
 import {
-    createImapSession,
-    getImapSession,
-    type ImapSessionStore,
-} from "../../server/src/imap-session";
+    credentialsFromEnv,
+    main,
+    runSync,
+    type SyncEnvironment,
+} from "../../server/src/sync-main";
 import type { FetchMessageObject } from "imapflow";
-import { createHash } from "node:crypto";
 
 const analysis = {
     category: "직업훈련" as const,
@@ -89,9 +84,11 @@ class FakeRepository implements MailRepository {
 class SyncRepository implements MailRepository {
     readonly items = new Map<string, MailItem>();
     readonly keys = new Map<string, string>();
+    failCreate = false;
+    failUpdate = false;
 
     create(item: Omit<MailItem, "id">): Promise<string> {
-        const id = `smtp-${this.items.size + 1}`;
+        const id = `mail-${this.items.size + 1}`;
         this.items.set(id, { id, ...item });
         return Promise.resolve(id);
     }
@@ -100,11 +97,14 @@ class SyncRepository implements MailRepository {
         item: Omit<MailItem, "id">,
         idempotencyKey: string
     ): Promise<{ id: string; created: boolean }> {
+        if (this.failCreate) {
+            return Promise.reject(new Error("Firestore unavailable"));
+        }
         const existingId = this.keys.get(idempotencyKey);
         if (existingId) {
             return Promise.resolve({ id: existingId, created: false });
         }
-        const id = createHash("sha256").update(idempotencyKey).digest("hex");
+        const id = `mail-${this.items.size + 1}`;
         this.keys.set(idempotencyKey, id);
         this.items.set(id, { id, ...item });
         return Promise.resolve({ id, created: true });
@@ -115,6 +115,9 @@ class SyncRepository implements MailRepository {
     }
 
     update(id: string, update: MailUpdate): Promise<void> {
+        if (this.failUpdate) {
+            return Promise.reject(new Error("Firestore update unavailable"));
+        }
         const item = this.items.get(id);
         if (item) {
             this.items.set(id, { ...item, ...update });
@@ -124,20 +127,38 @@ class SyncRepository implements MailRepository {
 }
 
 class FakeImapClient implements ImapClient {
-    mailbox: ImapClient["mailbox"] = { uidValidity: 99n };
+    mailbox: ImapClient["mailbox"];
     readonly fetched: number[] = [];
     readonly searchOptions: { uid: boolean }[] = [];
     readonly locks: {
         path: string;
         options: { readOnly: boolean; acquireTimeout: number };
     }[] = [];
+    readonly flagCalls: {
+        range: number;
+        flags: string[];
+        options: { uid: boolean };
+    }[] = [];
     released = false;
     loggedOut = false;
     closed = false;
-    private readonly messages: Array<FetchMessageObject | false>;
+    flagError = false;
+    private readonly messages: Map<number, FetchMessageObject | false>;
 
-    constructor(messages: Array<FetchMessageObject | false>) {
-        this.messages = [...messages];
+    constructor(
+        messages: Array<FetchMessageObject | false>,
+        uidValidity = 99n
+    ) {
+        this.mailbox = { uidValidity };
+        this.messages = new Map(
+            messages.map((entry, index) => {
+                const uid =
+                    entry === false || entry.uid === undefined
+                        ? 701 + index
+                        : entry.uid;
+                return [uid, entry];
+            })
+        );
     }
 
     connect(): Promise<void> {
@@ -174,53 +195,51 @@ class FakeImapClient implements ImapClient {
         options: { uid: boolean }
     ): Promise<number[]> {
         this.searchOptions.push(options);
-        return Promise.resolve(
-            this.messages.map((_message, index) => 701 + index)
-        );
+        return Promise.resolve([...this.messages.keys()]);
     }
 
     fetchOne(uid: number): Promise<FetchMessageObject | false> {
         this.fetched.push(uid);
-        return Promise.resolve(this.messages.shift() ?? false);
+        return Promise.resolve(this.messages.get(uid) ?? false);
+    }
+
+    messageFlagsAdd(
+        range: number,
+        flags: string[],
+        options: { uid: boolean }
+    ): Promise<boolean> {
+        if (this.flagError) {
+            return Promise.reject(new Error("IMAP flag update failed"));
+        }
+        this.flagCalls.push({ range, flags, options });
+        return Promise.resolve(true);
     }
 }
 
-class FakeSessionStore implements ImapSessionStore {
-    credentials: ImapCredentials | null = {
-        account: "portal@kangnam.ac.kr",
-        password: "secret",
+const rawMessage = Buffer.from(
+    [
+        "From: 미래직업교육원 <notice@example.invalid>",
+        "To: promotion@example.invalid",
+        "Subject: IMAP 테스트",
+        "Message-ID: <imap@example.invalid>",
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        "IMAP 본문입니다.",
+    ].join("\r\n")
+);
+
+function message(uid: number, source = rawMessage): FetchMessageObject {
+    return { seq: uid, uid, source };
+}
+
+function completeEnvironment(): SyncEnvironment {
+    return {
+        IMAP_HOST: "imap.example.invalid",
+        IMAP_PORT: "993",
+        IMAP_SECURE: "true",
+        IMAP_ACCOUNT: "inbox@example.invalid",
+        IMAP_PASSWORD: "imap-secret",
     };
-    createBehavior: "ok" | "credential" | "unavailable" = "ok";
-    deleted = 0;
-
-    create(
-        _portalId: string,
-        _password: string
-    ): Promise<{ token: string; account: string }> {
-        if (this.createBehavior === "credential") {
-            return Promise.reject(
-                new ImapCredentialError("IMAP authentication failed")
-            );
-        }
-        if (this.createBehavior === "unavailable") {
-            return Promise.reject(
-                new ImapUnavailableError("IMAP server is unavailable")
-            );
-        }
-        return Promise.resolve({
-            token: "opaque-token",
-            account: "portal@kangnam.ac.kr",
-        });
-    }
-
-    get(_token: string): ImapCredentials | null {
-        return this.credentials;
-    }
-
-    delete(_token: string): void {
-        this.deleted += 1;
-        this.credentials = null;
-    }
 }
 
 describe("MailAnalysisSchema", () => {
@@ -241,44 +260,16 @@ describe("MailAnalysisSchema", () => {
     });
 });
 
-describe("SMTP parsing and processing", () => {
-    it("normalizes an RFC 822 message without attachments", async () => {
-        const raw = Buffer.from(
-            [
-                "From: 미래직업교육원 <notice@example.invalid>",
-                "To: promotion@example.invalid",
-                "Subject: 테스트 제목",
-                "Message-ID: <mail@example.invalid>",
-                "Content-Type: text/plain; charset=utf-8",
-                "",
-                "본문입니다.",
-            ].join("\r\n")
-        );
-        const item = await parseMailMessage(raw, {
-            mailFrom: { address: "notice@example.invalid", args: {} },
-            rcptTo: [{ address: "promotion@example.invalid", args: {} }],
-        });
+describe("mail parsing and processing", () => {
+    it("normalizes RFC 822 text and HTML-only messages", async () => {
+        const item = await parseMailSource(rawMessage);
         expect(item.senderAddress).toBe("notice@example.invalid");
-        const sourceItem = await parseMailSource(raw);
-        expect(sourceItem.senderAddress).toBe("notice@example.invalid");
-        expect(sourceItem.recipients).toEqual(["promotion@example.invalid"]);
-        expect(item.subject).toBe("테스트 제목");
-        expect(item.textBody).toBe("본문입니다.");
-        expect(item.externalMessageId).toBe("<mail@example.invalid>");
-        const repository = new FakeRepository();
-        const persistedId = await persistParsedMail(
-            raw,
-            {
-                mailFrom: { address: "notice@example.invalid", args: {} },
-                rcptTo: [{ address: "promotion@example.invalid", args: {} }],
-            },
-            repository
-        );
-        expect(persistedId).toBe("mail-1");
-    });
+        expect(item.recipients).toEqual(["promotion@example.invalid"]);
+        expect(item.subject).toBe("IMAP 테스트");
+        expect(item.textBody).toBe("IMAP 본문입니다.");
+        expect(item.externalMessageId).toBe("<imap@example.invalid>");
 
-    it("converts an HTML-only message into reviewable text", async () => {
-        const raw = Buffer.from(
+        const html = Buffer.from(
             [
                 "From: notice@example.invalid",
                 "To: promotion@example.invalid",
@@ -288,9 +279,9 @@ describe("SMTP parsing and processing", () => {
                 "<html><body><h1>모집 안내</h1><p>HTML 본문입니다.</p></body></html>",
             ].join("\r\n")
         );
-        const item = await parseMailSource(raw);
-        expect(item.textBody).toContain("모집 안내");
-        expect(item.textBody).toContain("HTML 본문입니다.");
+        const htmlItem = await parseMailSource(html);
+        expect(htmlItem.textBody).toContain("모집 안내");
+        expect(htmlItem.textBody).toContain("HTML 본문입니다.");
     });
 
     it("transitions queued mail to ready with injected analysis", async () => {
@@ -315,252 +306,314 @@ describe("SMTP parsing and processing", () => {
         expect(repository.item.analysis).toBeNull();
     });
 });
-describe("IMAP synchronization", () => {
-    const rawMessage = Buffer.from(
-        [
-            "From: 미래직업교육원 <notice@example.invalid>",
-            "To: promotion@example.invalid",
-            "Subject: IMAP 테스트",
-            "Message-ID: <imap@example.invalid>",
-            "Content-Type: text/plain; charset=utf-8",
-            "",
-            "IMAP 본문입니다.",
-        ].join("\r\n")
-    );
 
-    it("searches and fetches unseen messages by UID while rejecting malformed sources", async () => {
-        const client = new FakeImapClient([
-            { seq: 1, uid: 701, source: Buffer.from("invalid source") },
-            { seq: 2, uid: 702 },
-            {
-                seq: 3,
-                uid: 703,
-                source: rawMessage,
-                internalDate: new Date("2026-07-20T00:00:00Z"),
-            },
-        ]);
+describe("IMAP synchronization", () => {
+    it("waits for analysis and marks a new message seen by UID", async () => {
+        const client = new FakeImapClient([message(701)]);
         const repository = new SyncRepository();
+        let analyzed = 0;
         const result = await syncInbox(
-            { account: "portal@kangnam.ac.kr", password: "secret" },
+            { account: "inbox@example.invalid", password: "secret" },
             repository,
-            () => Promise.resolve(analysis),
+            () => {
+                analyzed += 1;
+                return Promise.resolve(analysis);
+            },
             () => client
         );
-        expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 2 });
-        expect(client.searchOptions).toEqual([{ uid: true }]);
-        expect(client.fetched).toEqual([701, 702, 703]);
-        expect(client.locks).toEqual([
-            {
-                path: "INBOX",
-                options: { readOnly: true, acquireTimeout: 30000 },
-            },
+
+        expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
+        expect(analyzed).toBe(1);
+        expect(repository.items.get("mail-1")?.status).toBe("ready");
+        expect(client.locks[0]).toEqual({
+            path: "INBOX",
+            options: { readOnly: false, acquireTimeout: 30000 },
+        });
+        expect(client.flagCalls).toEqual([
+            { range: 701, flags: ["\\Seen"], options: { uid: true } },
         ]);
         expect(client.released).toBe(true);
         expect(client.loggedOut).toBe(true);
     });
 
-    it("creates an IMAP message once and analyzes only newly created items", async () => {
+    it("uses the UID idempotency key on a second run without re-analyzing", async () => {
         const repository = new SyncRepository();
-        const clients: FakeImapClient[] = [];
-        const factory = () => {
-            const client = new FakeImapClient([
-                { seq: 9, uid: 901, source: rawMessage },
-            ]);
-            clients.push(client);
-            return client;
-        };
         let analyzed = 0;
         const analyzer: MailAnalyzer = () => {
             analyzed += 1;
             return Promise.resolve(analysis);
         };
         const credentials = {
-            account: "portal@kangnam.ac.kr",
+            account: "inbox@example.invalid",
             password: "secret",
         };
+        const firstClient = new FakeImapClient([message(701)]);
+        const secondClient = new FakeImapClient([message(701)]);
+
         expect(
-            await syncInbox(credentials, repository, analyzer, factory)
+            await syncInbox(
+                credentials,
+                repository,
+                analyzer,
+                () => firstClient
+            )
         ).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
         expect(
-            await syncInbox(credentials, repository, analyzer, factory)
+            await syncInbox(
+                credentials,
+                repository,
+                analyzer,
+                () => secondClient
+            )
         ).toEqual({ imported: 0, duplicates: 1, rejected: 0 });
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
+        expect(analyzed).toBe(1);
         expect(repository.items.size).toBe(1);
-        expect(
-            clients.every((client) => client.released && client.loggedOut)
-        ).toBe(true);
-    });
-});
-
-describe("IMAP sessions", () => {
-    it("expires and renews the in-memory password record with fake timers", async () => {
-        vi.useFakeTimers();
-        try {
-            const verify = () => Promise.resolve();
-            const created = await createImapSession("portal", "secret", verify);
-            expect(getImapSession(created.token)).toEqual({
-                account: "portal@kangnam.ac.kr",
-                password: "secret",
-            });
-            vi.advanceTimersByTime(29 * 60 * 1000);
-            expect(getImapSession(created.token)).not.toBeNull();
-            vi.advanceTimersByTime(29 * 60 * 1000);
-            expect(getImapSession(created.token)).not.toBeNull();
-            vi.advanceTimersByTime(30 * 60 * 1000);
-            expect(getImapSession(created.token)).toBeNull();
-        } finally {
-            vi.useRealTimers();
-        }
-    });
-});
-
-describe("IMAP routes", () => {
-    it("rejects malformed and invalid login payloads", async () => {
-        const sessions = new FakeSessionStore();
-        const app = createRoutes({ imapSessions: sessions });
-        expect(
-            (
-                await app.request("/api/imap/login", {
-                    method: "POST",
-                    body: "not-json",
-                })
-            ).status
-        ).toBe(400);
-        expect(
-            (
-                await app.request("/api/imap/login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        portalId: "portal@example.com",
-                        password: "secret",
-                    }),
-                })
-            ).status
-        ).toBe(400);
+        expect(secondClient.flagCalls).toEqual([
+            { range: 701, flags: ["\\Seen"], options: { uid: true } },
+        ]);
     });
 
-    it("maps login failures and never returns the opaque token", async () => {
-        const credentialSessions = new FakeSessionStore();
-        credentialSessions.createBehavior = "credential";
-        const credentialResponse = await createRoutes({
-            imapSessions: credentialSessions,
-        }).request("/api/imap/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ portalId: "portal", password: "secret" }),
-        });
-        expect(credentialResponse.status).toBe(401);
-        expect(await credentialResponse.json()).toEqual({
-            error: "IMAP authentication failed",
-        });
+    it("imports a new message when UIDVALIDITY changes", async () => {
+        const repository = new SyncRepository();
+        let analyzed = 0;
+        const analyzer: MailAnalyzer = () => {
+            analyzed += 1;
+            return Promise.resolve(analysis);
+        };
+        const credentials = {
+            account: "inbox@example.invalid",
+            password: "secret",
+        };
+        const firstClient = new FakeImapClient([message(801)], 99n);
+        const secondClient = new FakeImapClient([message(801)], 100n);
 
-        const unavailableSessions = new FakeSessionStore();
-        unavailableSessions.createBehavior = "unavailable";
         expect(
-            (
-                await createRoutes({
-                    imapSessions: unavailableSessions,
-                }).request("/api/imap/login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        portalId: "portal",
-                        password: "secret",
-                    }),
-                })
-            ).status
-        ).toBe(502);
+            await syncInbox(
+                credentials,
+                repository,
+                analyzer,
+                () => firstClient
+            )
+        ).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
+        expect(
+            await syncInbox(
+                credentials,
+                repository,
+                analyzer,
+                () => secondClient
+            )
+        ).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
+        expect(analyzed).toBe(2);
+        expect(repository.items.size).toBe(2);
+    });
 
-        const successful = await createRoutes({
-            imapSessions: new FakeSessionStore(),
-        }).request("/api/imap/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ portalId: "portal", password: "secret" }),
-        });
-        expect(successful.status).toBe(200);
-        expect(await successful.json()).toEqual({
-            account: "portal@kangnam.ac.kr",
-        });
-        expect(successful.headers.get("set-cookie")).toContain(
-            "imapSession=opaque-token"
+    it("leaves AI failures unseen and retries failed items", async () => {
+        const repository = new SyncRepository();
+        const firstClient = new FakeImapClient([message(802)]);
+        const secondClient = new FakeImapClient([message(802)]);
+        let attempts = 0;
+
+        await expect(
+            syncInbox(
+                { account: "inbox@example.invalid", password: "secret" },
+                repository,
+                () => {
+                    attempts += 1;
+                    return attempts === 1
+                        ? Promise.reject(new Error("AI provider unavailable"))
+                        : Promise.resolve(analysis);
+                },
+                () => firstClient
+            )
+        ).rejects.toBeInstanceOf(ImapUnavailableError);
+        expect(repository.items.get("mail-1")?.status).toBe("failed");
+        expect(firstClient.flagCalls).toEqual([]);
+
+        expect(
+            await syncInbox(
+                { account: "inbox@example.invalid", password: "secret" },
+                repository,
+                () => Promise.resolve(analysis),
+                () => secondClient
+            )
+        ).toEqual({ imported: 0, duplicates: 1, rejected: 0 });
+        expect(repository.items.get("mail-1")?.status).toBe("ready");
+        expect(secondClient.flagCalls).toEqual([
+            { range: 802, flags: ["\\Seen"], options: { uid: true } },
+        ]);
+    });
+
+    it("rejects malformed messages and marks them seen", async () => {
+        const client = new FakeImapClient([
+            message(701, Buffer.from("invalid")),
+        ]);
+        const result = await syncInbox(
+            { account: "inbox@example.invalid", password: "secret" },
+            new SyncRepository(),
+            () => Promise.resolve(analysis),
+            () => client
         );
-        expect(successful.headers.get("set-cookie")).toContain("HttpOnly");
+
+        expect(result).toEqual({ imported: 0, duplicates: 0, rejected: 1 });
+        expect(client.flagCalls).toEqual([
+            { range: 701, flags: ["\\Seen"], options: { uid: true } },
+        ]);
     });
 
-    it("clears invalid sessions and forwards valid sync credentials", async () => {
-        const missingSessions = new FakeSessionStore();
-        const missing = await createRoutes({
-            imapSessions: missingSessions,
-        }).request("/api/imap/sync", { method: "POST" });
-        expect(missing.status).toBe(401);
-        expect(missing.headers.get("set-cookie")).toContain("Max-Age=0");
+    it("leaves a message unseen when persistence fails", async () => {
+        const client = new FakeImapClient([message(703)]);
+        const repository = new SyncRepository();
+        repository.failCreate = true;
 
-        const sessions = new FakeSessionStore();
-        let received: ImapCredentials | null = null;
-        const response = await createRoutes({
-            imapSessions: sessions,
-            syncInbox: (credentials) => {
-                received = credentials;
-                return Promise.resolve({
-                    imported: 2,
-                    duplicates: 3,
-                    rejected: 4,
-                });
-            },
-        }).request("/api/imap/sync", {
-            method: "POST",
-            headers: { Cookie: "imapSession=opaque-token" },
-        });
-        expect(response.status).toBe(200);
-        expect(response.headers.get("set-cookie")).toContain("Max-Age=1800");
-        expect(await response.json()).toEqual({
-            imported: 2,
-            duplicates: 3,
-            rejected: 4,
+        await expect(
+            syncInbox(
+                { account: "inbox@example.invalid", password: "secret" },
+                repository,
+                () => Promise.resolve(analysis),
+                () => client
+            )
+        ).rejects.toBeInstanceOf(ImapUnavailableError);
+        expect(client.flagCalls).toEqual([]);
+    });
+
+    it("leaves a message unseen when flag mutation fails", async () => {
+        const client = new FakeImapClient([message(704)]);
+        client.flagError = true;
+
+        await expect(
+            syncInbox(
+                { account: "inbox@example.invalid", password: "secret" },
+                new SyncRepository(),
+                () => Promise.resolve(analysis),
+                () => client
+            )
+        ).rejects.toBeInstanceOf(ImapUnavailableError);
+        expect(client.flagCalls).toEqual([]);
+    });
+});
+
+describe("Heroku Scheduler sync configuration", () => {
+    it("passes the configured mailbox credentials to the sync runner", async () => {
+        let received: { account: string; password: string } | undefined;
+        const result = await runSync(completeEnvironment(), (credentials) => {
+            received = credentials;
+            return Promise.resolve({ imported: 1, duplicates: 0, rejected: 0 });
         });
         expect(received).toEqual({
-            account: "portal@kangnam.ac.kr",
-            password: "secret",
+            account: "inbox@example.invalid",
+            password: "imap-secret",
         });
+        expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
     });
 
-    it("deletes a session after IMAP authentication fails during sync", async () => {
-        const sessions = new FakeSessionStore();
-        const response = await createRoutes({
-            imapSessions: sessions,
-            syncInbox: () =>
-                Promise.reject(
-                    new ImapCredentialError("IMAP authentication failed")
-                ),
-        }).request("/api/imap/sync", {
-            method: "POST",
-            headers: { Cookie: "imapSession=opaque-token" },
-        });
-        expect(response.status).toBe(401);
-        expect(sessions.deleted).toBe(1);
-        expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    it.each(["IMAP_HOST", "IMAP_ACCOUNT", "IMAP_PASSWORD"] as const)(
+        "rejects missing %s without exposing the password",
+        (key) => {
+            const environment = completeEnvironment();
+            delete environment[key];
+            expect(() => credentialsFromEnv(environment)).toThrow(key);
+            expect(() => credentialsFromEnv(environment)).not.toThrow(
+                "imap-secret"
+            );
+        }
+    );
+
+    it("rejects invalid port and secure settings", () => {
+        expect(() =>
+            credentialsFromEnv({ ...completeEnvironment(), IMAP_PORT: "0" })
+        ).toThrow("IMAP_PORT");
+        expect(() =>
+            credentialsFromEnv({
+                ...completeEnvironment(),
+                IMAP_SECURE: "yes",
+            })
+        ).toThrow("IMAP_SECURE");
     });
+
+    it("prints exactly one JSON result line on success", async () => {
+        const output: string[] = [];
+        const stdoutSpy = vi
+            .spyOn(process.stdout, "write")
+            .mockImplementation((chunk) => {
+                output.push(String(chunk));
+                return true;
+            });
+        try {
+            expect(
+                await main(completeEnvironment(), () =>
+                    Promise.resolve({
+                        imported: 1,
+                        duplicates: 2,
+                        rejected: 3,
+                    })
+                )
+            ).toBe(0);
+            expect(output).toEqual([
+                '{"imported":1,"duplicates":2,"rejected":3}\n',
+            ]);
+        } finally {
+            stdoutSpy.mockRestore();
+        }
+    });
+    it.each([
+        [
+            new ImapCredentialError("authentication details must stay private"),
+            "IMAP authentication failed",
+        ],
+        [
+            new ImapUnavailableError("connection details must stay private"),
+            "IMAP server is unavailable",
+        ],
+    ] as const)(
+        "returns a nonzero outcome for %s",
+        async (error, expectedMessage) => {
+            const originalExitCode = process.exitCode;
+            process.exitCode = 0;
+            const stdout: string[] = [];
+            const stderr: string[] = [];
+            const stdoutSpy = vi
+                .spyOn(process.stdout, "write")
+                .mockImplementation((chunk) => {
+                    stdout.push(String(chunk));
+                    return true;
+                });
+            const stderrSpy = vi
+                .spyOn(process.stderr, "write")
+                .mockImplementation((chunk) => {
+                    stderr.push(String(chunk));
+                    return true;
+                });
+            try {
+                expect(
+                    await main(completeEnvironment(), () =>
+                        Promise.reject(error)
+                    )
+                ).toBe(1);
+                expect(stdout).toEqual([]);
+                expect(stderr).toEqual([`${expectedMessage}\n`]);
+                expect(stderr.join("")).not.toContain("imap-secret");
+            } finally {
+                stdoutSpy.mockRestore();
+                stderrSpy.mockRestore();
+                process.exitCode = originalExitCode;
+            }
+        }
+    );
 });
 
 describe("review routes", () => {
     it("returns health and missing-item responses", async () => {
         const repository = new FakeRepository();
-        const app = createRoutes({ repository });
-        expect((await app.request("/healthz")).status).toBe(200);
+        expect(
+            (await createRoutes({ repository }).request("/healthz")).status
+        ).toBe(200);
         const missing = new FakeRepository();
         missing.get = () => Promise.resolve(null);
-        expect(
-            (
-                await createRoutes({ repository: missing }).request(
-                    "/api/mails/nope/review",
-                    { method: "POST" }
-                )
-            ).status
-        ).toBe(404);
+        const response = await createRoutes({ repository: missing }).request(
+            "/api/mails/nope/review",
+            { method: "POST" }
+        );
+        expect(response.status).toBe(404);
     });
 
     it("rejects non-ready mail and marks ready mail reviewed", async () => {

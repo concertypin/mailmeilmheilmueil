@@ -4,14 +4,15 @@ import { analyzeMail } from "./analysis";
 
 export type MailAnalyzer = (item: MailItem) => Promise<MailAnalysis>;
 
-export const AI_FAILURE_MESSAGE = "AI 분석에 실패했습니다. 테스트 메일을 다시 보내 주세요.";
+export const AI_FAILURE_MESSAGE =
+    "AI 분석에 실패했습니다. 테스트 메일을 다시 보내 주세요.";
 
 /** Process one queued mail and retain the original when analysis fails. */
 export async function processMailItem(
     id: string,
     repository: MailRepository = firestoreRepository,
     analyzer: MailAnalyzer = analyzeMail
-): Promise<void> {
+): Promise<"ready" | "failed"> {
     const item = await repository.get(id);
     if (!item) {
         throw new Error(`Mail item ${id} was not found`);
@@ -26,6 +27,7 @@ export async function processMailItem(
             status: "ready",
             failureMessage: null,
         });
+        return "ready";
     } catch (error) {
         process.stderr.write(`Mail analysis failed: ${String(error)}\n`);
         await repository.update(id, {
@@ -33,5 +35,6 @@ export async function processMailItem(
             status: "failed",
             failureMessage: AI_FAILURE_MESSAGE,
         });
+        return "failed";
     }
 }

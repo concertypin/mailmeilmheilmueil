@@ -1,7 +1,11 @@
-import { ImapFlow, type FetchMessageObject, type ImapFlowOptions } from "imapflow";
+import {
+    ImapFlow,
+    type FetchMessageObject,
+    type ImapFlowOptions,
+} from "imapflow";
 import { Timestamp } from "firebase-admin/firestore";
 import { analyzeMail } from "./analysis";
-import { parseMailSource } from "./smtp-receiver";
+import { parseMailSource } from "./mail-parser";
 import { processMailItem, type MailAnalyzer } from "./processor";
 import { firestoreRepository, type MailRepository } from "./repository";
 
@@ -9,10 +13,6 @@ export type ImapCredentials = {
     account: string;
     password: string;
 };
-
-export type ImapCredentialVerifier = (
-    credentials: ImapCredentials
-) => Promise<void>;
 
 export type ImapSyncResult = {
     imported: number;
@@ -27,6 +27,15 @@ export class ImapCredentialError extends Error {
 export class ImapUnavailableError extends Error {
     readonly code = "IMAP_UNAVAILABLE";
 }
+export class ImapConfigurationError extends Error {
+    readonly code = "IMAP_CONFIGURATION_INVALID";
+}
+
+export type ImapEnvironment = {
+    IMAP_HOST?: string;
+    IMAP_PORT?: string;
+    IMAP_SECURE?: string;
+};
 
 export type ImapClient = {
     connect(): Promise<void>;
@@ -47,14 +56,62 @@ export type ImapClient = {
         query: { uid: boolean; source: boolean; internalDate: boolean },
         options: { uid: boolean }
     ): Promise<FetchMessageObject | false>;
+    messageFlagsAdd(
+        range: number,
+        flags: string[],
+        options: { uid: boolean }
+    ): Promise<boolean>;
 };
+
 export type ImapClientFactory = (credentials: ImapCredentials) => ImapClient;
+
+function requiredImapValue(
+    environment: ImapEnvironment,
+    key: "IMAP_HOST"
+): string {
+    const value = environment[key]?.trim();
+    if (!value) {
+        throw new ImapConfigurationError(`${key} is required`);
+    }
+    return value;
+}
+
+function imapPort(environment: ImapEnvironment): number {
+    const value = environment.IMAP_PORT?.trim() || "993";
+    if (!/^\d+$/.test(value)) {
+        throw new ImapConfigurationError("IMAP_PORT is invalid");
+    }
+    const port = Number(value);
+    if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
+        throw new ImapConfigurationError("IMAP_PORT is invalid");
+    }
+    return port;
+}
+
+function imapSecure(environment: ImapEnvironment): boolean {
+    const value = environment.IMAP_SECURE?.trim();
+    if (!value || value === "true") {
+        return true;
+    }
+    if (value === "false") {
+        return false;
+    }
+    throw new ImapConfigurationError("IMAP_SECURE is invalid");
+}
+
+export function imapOptionsFromEnv(
+    environment: ImapEnvironment = process.env
+): Pick<ImapFlowOptions, "host" | "port" | "secure"> {
+    return {
+        host: requiredImapValue(environment, "IMAP_HOST"),
+        port: imapPort(environment),
+        secure: imapSecure(environment),
+    };
+}
 
 export function createImapClient(credentials: ImapCredentials): ImapClient {
     const options: ImapFlowOptions = {
-        host: "mail.kangnam.ac.kr",
-        port: 993,
-        secure: true,
+        ...imapOptionsFromEnv(),
         auth: { user: credentials.account, pass: credentials.password },
     };
     const client = new ImapFlow(options);
@@ -75,22 +132,6 @@ async function closeClient(client: ImapClient): Promise<void> {
         await client.logout();
     } catch {
         client.close();
-    }
-}
-
-export async function verifyImapCredentials(
-    credentials: ImapCredentials
-): Promise<void> {
-    const client = createImapClient(credentials);
-    try {
-        await client.connect();
-    } catch (error: unknown) {
-        if (isAuthenticationFailure(error)) {
-            throw new ImapCredentialError("IMAP authentication failed");
-        }
-        throw new ImapUnavailableError("IMAP server is unavailable");
-    } finally {
-        await closeClient(client);
     }
 }
 
@@ -121,7 +162,7 @@ export async function syncInbox(
             throw new ImapUnavailableError("IMAP server is unavailable");
         }
         lock = await client.getMailboxLock("INBOX", {
-            readOnly: true,
+            readOnly: false,
             acquireTimeout: 30000,
         });
         if (!client.mailbox) {
@@ -140,57 +181,71 @@ export async function syncInbox(
         };
 
         for (const uid of uids) {
-            let message: FetchMessageObject | false;
+            const message = await client.fetchOne(
+                uid,
+                { uid: true, source: true, internalDate: true },
+                { uid: true }
+            );
+            if (message === false || !message.source) {
+                result.rejected += 1;
+                await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+                continue;
+            }
+
+            let item: Awaited<ReturnType<typeof parseMailSource>>;
             try {
-                message = await client.fetchOne(
-                    uid,
-                    { uid: true, source: true, internalDate: true },
-                    { uid: true }
-                );
-                if (message === false || !message.source) {
-                    result.rejected += 1;
-                    continue;
-                }
                 const date = validInternalDate(message.internalDate);
-                const item = await parseMailSource(
+                item = await parseMailSource(
                     message.source,
                     date ? Timestamp.fromDate(date) : Timestamp.now()
                 );
-                const idempotencyKey = `${credentials.account}|${uidValidity}|${message.uid}`;
-                const inserted = await repository.createIfAbsent(
-                    item,
-                    idempotencyKey
+            } catch {
+                result.rejected += 1;
+                await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
+                continue;
+            }
+
+            const idempotencyKey = `${credentials.account}|${uidValidity}|${uid}`;
+            const inserted = await repository.createIfAbsent(
+                item,
+                idempotencyKey
+            );
+            if (inserted.created) {
+                result.imported += 1;
+                const processingResult = await processMailItem(
+                    inserted.id,
+                    repository,
+                    analyzer
                 );
-                if (inserted.created) {
-                    result.imported += 1;
-                    void processMailItem(
+                if (processingResult === "failed") {
+                    throw new ImapUnavailableError(
+                        "Mail analysis failed; retry required"
+                    );
+                }
+            } else {
+                result.duplicates += 1;
+                const existing = await repository.get(inserted.id);
+                if (existing?.status === "failed") {
+                    const processingResult = await processMailItem(
                         inserted.id,
                         repository,
                         analyzer
-                    ).catch((error: unknown) => {
-                        process.stderr.write(
-                            `Mail processing failed: ${String(error)}\n`
+                    );
+                    if (processingResult === "failed") {
+                        throw new ImapUnavailableError(
+                            "Mail analysis failed; retry required"
                         );
-                    });
-                } else {
-                    result.duplicates += 1;
+                    }
                 }
-            } catch (error: unknown) {
-                if (
-                    error instanceof ImapCredentialError ||
-                    error instanceof ImapUnavailableError
-                ) {
-                    throw error;
-                }
-                result.rejected += 1;
             }
+            await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
         }
         return result;
     } catch (error: unknown) {
-        if (
-            error instanceof ImapCredentialError ||
-            error instanceof ImapUnavailableError
-        ) {
+        if (error instanceof ImapCredentialError) {
+            throw error;
+        }
+        if (error instanceof ImapUnavailableError) {
             throw error;
         }
         throw new ImapUnavailableError("IMAP server is unavailable");

@@ -9,6 +9,19 @@ on:
 permissions:
     contents: read
 jobs:
+    quality:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup pnpm Environment
+              uses: concertypin/action/pnpm-install@master
+
+            - name: Build application
+              run: pnpm build
+
+            - name: Run lint
+              run: pnpm lint
     tests:
         runs-on: ubuntu-latest
         strategy:
