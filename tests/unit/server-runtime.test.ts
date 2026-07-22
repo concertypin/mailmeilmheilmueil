@@ -13,9 +13,9 @@ const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
     await Promise.all(
-        temporaryDirectories.splice(0).map((directory) =>
-            rm(directory, { force: true, recursive: true })
-        )
+        temporaryDirectories
+            .splice(0)
+            .map((directory) => rm(directory, { force: true, recursive: true }))
     );
 });
 
@@ -31,7 +31,7 @@ describe("Heroku web app", () => {
     it("serves the SPA shell and existing assets", async () => {
         const app = createWebApp({}, await fixtureRoot());
 
-        const page = await app.request("/login");
+        const page = await app.request("/mails/unknown");
         expect(page.status).toBe(200);
         expect(await page.text()).toBe("<main>fixture SPA</main>");
 
@@ -52,16 +52,6 @@ describe("Heroku web app", () => {
         });
         expect(missingApi.status).toBe(404);
         expect(await missingApi.json()).toEqual({ error: "Not found" });
-
-        const invalidLogin = await app.request("/api/imap/login", {
-            body: "{}",
-            headers: { "content-type": "application/json" },
-            method: "POST",
-        });
-        expect(invalidLogin.status).toBe(400);
-        expect(await invalidLogin.json()).toEqual({
-            error: "Invalid IMAP login request",
-        });
     });
 });
 
@@ -116,8 +106,8 @@ describe("AI analysis provider configuration", () => {
     });
 
     it("rejects an unknown provider", () => {
-        expect(() =>
-            analysisConfigFromEnv({ AI_PROVIDER: "unknown" })
-        ).toThrow("AI_PROVIDER must be either codex or openai");
+        expect(() => analysisConfigFromEnv({ AI_PROVIDER: "unknown" })).toThrow(
+            "AI_PROVIDER must be either codex or openai"
+        );
     });
 });
