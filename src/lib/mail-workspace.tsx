@@ -2,11 +2,13 @@ import { createContext, type ReactNode, useContext, useState } from "react";
 
 interface MailWorkspaceValue {
     reviewedMailIds: Set<string>;
-    markReviewed: (mailId: string) => void;
+    draftsByMailId: Readonly<Record<string, string>>;
+    markReviewed: (mailId: string, promotionDraft: string) => void;
 }
 
 const mailWorkspaceContext = createContext<MailWorkspaceValue>({
     reviewedMailIds: new Set(),
+    draftsByMailId: {},
     markReviewed: () => undefined,
 });
 
@@ -14,12 +16,20 @@ export function MailWorkspaceProvider({ children }: { children: ReactNode }) {
     const [reviewedMailIds, setReviewedMailIds] = useState<Set<string>>(
         new Set()
     );
+    const [draftsByMailId, setDraftsByMailId] = useState<
+        Record<string, string>
+    >({});
 
     return (
         <mailWorkspaceContext.Provider
             value={{
                 reviewedMailIds,
-                markReviewed: (mailId) => {
+                draftsByMailId,
+                markReviewed: (mailId, promotionDraft) => {
+                    setDraftsByMailId((currentDrafts) => ({
+                        ...currentDrafts,
+                        [mailId]: promotionDraft,
+                    }));
                     setReviewedMailIds((currentReviewedMailIds) =>
                         new Set(currentReviewedMailIds).add(mailId)
                     );

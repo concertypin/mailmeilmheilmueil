@@ -9,21 +9,35 @@ export default function MailReview() {
     const { mailId } = useParams();
     const [searchParams] = useSearchParams();
     const [, navigate] = useLocation();
-    const { markReviewed: moveToOutbox } = useMailWorkspace();
+    const { markReviewed: moveToOutbox, draftsByMailId } = useMailWorkspace();
     const isReviewMode = searchParams.get("mode") === "review";
-    const [item, setItem] = useState<MailItem | null>(() =>
-        mailId ? findMockMailItem(mailId) : null
-    );
+    const [item, setItem] = useState<MailItem | null>(() => {
+        const mockItem = mailId ? findMockMailItem(mailId) : null;
+        const promotionDraft = mailId ? draftsByMailId[mailId] : undefined;
+        return mockItem && promotionDraft !== undefined && mockItem.analysis
+            ? {
+                  ...mockItem,
+                  analysis: { ...mockItem.analysis, promotionDraft },
+              }
+            : mockItem;
+    });
     const [reviewError, setReviewError] = useState<string | null>(null);
 
-    function markReviewed(): Promise<void> {
+    function markReviewed(promotionDraft: string): Promise<void> {
         setReviewError(null);
         if (!item || item.status !== "ready") {
             setReviewError("아직 검토할 수 없는 메일입니다.");
             return Promise.resolve();
         }
-        setItem({ ...item, status: "reviewed", reviewedAt: item.receivedAt });
-        moveToOutbox(item.id);
+        setItem({
+            ...item,
+            status: "reviewed",
+            reviewedAt: item.receivedAt,
+            analysis: item.analysis
+                ? { ...item.analysis, promotionDraft }
+                : item.analysis,
+        });
+        moveToOutbox(item.id, promotionDraft);
         navigate("/inbox?folder=outbox");
         return Promise.resolve();
     }

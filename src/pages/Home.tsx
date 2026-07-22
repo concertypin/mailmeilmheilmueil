@@ -51,19 +51,29 @@ export default function Home() {
             ? folder
             : "inbox";
     });
-    const { reviewedMailIds } = useMailWorkspace();
-    const visibleMailItems = mockMailItems.filter((item) => {
-        if (activeMailbox === "review") {
-            return !reviewedMailIds.has(item.id) && item.analysis !== null;
-        }
-        if (activeMailbox === "outbox") {
-            return reviewedMailIds.has(item.id);
-        }
-        if (activeMailbox === "important") {
-            return INITIAL_IMPORTANT_MAIL_IDS[item.id] === true;
-        }
-        return !reviewedMailIds.has(item.id);
-    });
+    const { reviewedMailIds, draftsByMailId } = useMailWorkspace();
+    const visibleMailItems = mockMailItems
+        .map((item) => {
+            const promotionDraft = draftsByMailId[item.id];
+            return promotionDraft !== undefined && item.analysis
+                ? {
+                      ...item,
+                      analysis: { ...item.analysis, promotionDraft },
+                  }
+                : item;
+        })
+        .filter((item) => {
+            if (activeMailbox === "review") {
+                return !reviewedMailIds.has(item.id) && item.analysis !== null;
+            }
+            if (activeMailbox === "outbox") {
+                return reviewedMailIds.has(item.id);
+            }
+            if (activeMailbox === "important") {
+                return INITIAL_IMPORTANT_MAIL_IDS[item.id] === true;
+            }
+            return !reviewedMailIds.has(item.id);
+        });
     const activeMailboxTitle =
         activeMailbox === "inbox"
             ? "받은메일함"

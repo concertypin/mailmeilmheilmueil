@@ -3,7 +3,7 @@ import { type MailItem } from "@/lib/mail-schema";
 
 interface MailReviewPanelProps {
     item: MailItem;
-    onReview: () => Promise<void>;
+    onReview: (promotionDraft: string) => Promise<void>;
     reviewError?: string | null;
 }
 
@@ -242,7 +242,7 @@ export default function MailReviewPanel({
                                         <button
                                             className="btn btn-primary mt-4 self-start"
                                             onClick={() => {
-                                                void onReview();
+                                                void onReview(promotionDraft);
                                             }}
                                             type="button"
                                         >
