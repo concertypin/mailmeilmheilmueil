@@ -91,9 +91,10 @@ export default function Home() {
         const matchesSearch = searchableText.includes(
             searchTerm.trim().toLowerCase()
         );
-        const matchesSender = item.senderName
-            .toLowerCase()
-            .includes(senderFilter.trim().toLowerCase());
+        const senderQuery = senderFilter.trim().toLowerCase();
+        const matchesSender =
+            item.senderName.toLowerCase().includes(senderQuery) ||
+            item.senderAddress.toLowerCase().includes(senderQuery);
         const matchesDateFrom = dateFrom === "" || receivedDate >= dateFrom;
         const matchesDateTo = dateTo === "" || receivedDate <= dateTo;
         const hasPromotionDraft =
