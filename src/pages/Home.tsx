@@ -9,7 +9,11 @@ import {
 } from "@phosphor-icons/react";
 import { Link, useSearchParams } from "wouter";
 import { mockMailItems } from "@/lib/mock-mail";
-import type { MailItem } from "@/lib/mail-schema";
+import {
+    mailCategories,
+    type MailAnalysis,
+    type MailItem,
+} from "@/lib/mail-schema";
 import { useMailWorkspace } from "@/lib/mail-workspace";
 
 function statusLabel(status: MailItem["status"]): string {
@@ -35,7 +39,21 @@ export default function Home() {
     const [senderFilter, setSenderFilter] = useState("");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
-    const [promotionDraftFilter, setPromotionDraftFilter] = useState("all");
+    const [categoryFilter, setCategoryFilter] = useState<
+        "all" | MailAnalysis["category"]
+    >("all");
+    const [audienceFilter, setAudienceFilter] = useState("");
+    const [scheduleFilter, setScheduleFilter] = useState("");
+    const [applicationDeadlineFrom, setApplicationDeadlineFrom] = useState("");
+    const [applicationDeadlineTo, setApplicationDeadlineTo] = useState("");
+    const [benefitsFilter, setBenefitsFilter] = useState("");
+    const [applicationMethodFilter, setApplicationMethodFilter] = useState("");
+    const [contactOrReferenceFilter, setContactOrReferenceFilter] =
+        useState("");
+    const [reviewNotesFilter, setReviewNotesFilter] = useState("");
+    const [promotionDraftFilter, setPromotionDraftFilter] = useState<
+        "all" | "generated" | "missing"
+    >("all");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [promotionDraftMessage, setPromotionDraftMessage] = useState<
         string | null
@@ -86,8 +104,25 @@ export default function Home() {
         const receivedDate = item.receivedAt
             .toDate()
             .toLocaleDateString("sv-SE");
-        const searchableText =
-            `${item.senderName} ${item.senderAddress} ${item.subject} ${item.textBody}`.toLowerCase();
+        const analysis = item.analysis;
+        const searchableText = [
+            item.senderName,
+            item.senderAddress,
+            item.subject,
+            item.textBody,
+            analysis?.category,
+            analysis?.audience,
+            analysis?.schedule,
+            analysis?.applicationDeadline,
+            analysis?.benefits,
+            analysis?.applicationMethod,
+            analysis?.contactOrReference,
+            ...(analysis?.reviewNotes ?? []),
+            analysis?.promotionDraft,
+        ]
+            .filter((value): value is string => Boolean(value))
+            .join(" ")
+            .toLowerCase();
         const matchesSearch = searchableText.includes(
             searchTerm.trim().toLowerCase()
         );
@@ -97,12 +132,67 @@ export default function Home() {
             item.senderAddress.toLowerCase().includes(senderQuery);
         const matchesDateFrom = dateFrom === "" || receivedDate >= dateFrom;
         const matchesDateTo = dateTo === "" || receivedDate <= dateTo;
-        const hasPromotionDraft =
-            item.analysis?.promotionDraft !== null &&
-            item.analysis?.promotionDraft !== undefined;
+        const deadline = analysis?.applicationDeadline;
+        const matchesCategory =
+            categoryFilter === "all" || analysis?.category === categoryFilter;
+        const matchesAudience =
+            !audienceFilter ||
+            Boolean(
+                analysis?.audience
+                    ?.toLowerCase()
+                    .includes(audienceFilter.trim().toLowerCase())
+            );
+        const matchesSchedule =
+            !scheduleFilter ||
+            Boolean(
+                analysis?.schedule
+                    ?.toLowerCase()
+                    .includes(scheduleFilter.trim().toLowerCase())
+            );
+        const matchesDeadlineFrom =
+            !applicationDeadlineFrom ||
+            (deadline !== null &&
+                deadline !== undefined &&
+                deadline >= applicationDeadlineFrom);
+        const matchesDeadlineTo =
+            !applicationDeadlineTo ||
+            (deadline !== null &&
+                deadline !== undefined &&
+                deadline <= applicationDeadlineTo);
+        const matchesBenefits =
+            !benefitsFilter ||
+            Boolean(
+                analysis?.benefits
+                    ?.toLowerCase()
+                    .includes(benefitsFilter.trim().toLowerCase())
+            );
+        const matchesApplicationMethod =
+            !applicationMethodFilter ||
+            Boolean(
+                analysis?.applicationMethod
+                    ?.toLowerCase()
+                    .includes(applicationMethodFilter.trim().toLowerCase())
+            );
+        const matchesContactOrReference =
+            !contactOrReferenceFilter ||
+            Boolean(
+                analysis?.contactOrReference
+                    ?.toLowerCase()
+                    .includes(contactOrReferenceFilter.trim().toLowerCase())
+            );
+        const matchesReviewNotes =
+            !reviewNotesFilter ||
+            Boolean(
+                analysis?.reviewNotes.some((note) =>
+                    note
+                        .toLowerCase()
+                        .includes(reviewNotesFilter.trim().toLowerCase())
+                )
+            );
+        const hasPromotionDraft = Boolean(analysis?.promotionDraft);
         const matchesPromotionDraft =
             promotionDraftFilter === "all" ||
-            (promotionDraftFilter === "ready"
+            (promotionDraftFilter === "generated"
                 ? hasPromotionDraft
                 : !hasPromotionDraft);
 
@@ -111,6 +201,15 @@ export default function Home() {
             matchesSender &&
             matchesDateFrom &&
             matchesDateTo &&
+            matchesCategory &&
+            matchesAudience &&
+            matchesSchedule &&
+            matchesDeadlineFrom &&
+            matchesDeadlineTo &&
+            matchesBenefits &&
+            matchesApplicationMethod &&
+            matchesContactOrReference &&
+            matchesReviewNotes &&
             matchesPromotionDraft
         );
     });
@@ -303,6 +402,7 @@ export default function Home() {
                                     <label className="fieldset">
                                         <span className="label">보낸사람</span>
                                         <input
+                                            aria-label="보낸사람"
                                             className="input w-full"
                                             onChange={(event) =>
                                                 setSenderFilter(
@@ -315,10 +415,12 @@ export default function Home() {
                                         />
                                     </label>
                                     <fieldset className="fieldset">
-                                        <legend className="label">기간</legend>
+                                        <legend className="label">
+                                            수신일
+                                        </legend>
                                         <div className="flex items-center gap-2">
                                             <input
-                                                aria-label="시작일"
+                                                aria-label="수신일 시작일"
                                                 className="input min-w-0 flex-1"
                                                 onChange={(event) =>
                                                     setDateFrom(
@@ -331,7 +433,7 @@ export default function Home() {
                                             />
                                             <span>–</span>
                                             <input
-                                                aria-label="종료일"
+                                                aria-label="수신일 종료일"
                                                 className="input min-w-0 flex-1"
                                                 onChange={(event) =>
                                                     setDateTo(
@@ -345,24 +447,156 @@ export default function Home() {
                                         </div>
                                     </fieldset>
                                     <label className="fieldset">
+                                        <span className="label">AI 분류</span>
+                                        <select
+                                            aria-label="AI 분류"
+                                            className="select w-full"
+                                            onChange={(event) =>
+                                                setCategoryFilter(
+                                                    event.currentTarget
+                                                        .value as
+                                                        | "all"
+                                                        | MailAnalysis["category"]
+                                                )
+                                            }
+                                            value={categoryFilter}
+                                        >
+                                            <option value="all">전체</option>
+                                            {mailCategories.map((category) => (
+                                                <option
+                                                    key={category}
+                                                    value={category}
+                                                >
+                                                    {category}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    {(
+                                        [
+                                            [
+                                                "AI 모집 대상",
+                                                "모집 대상 검색",
+                                                audienceFilter,
+                                                setAudienceFilter,
+                                            ],
+                                            [
+                                                "AI 일정",
+                                                "일정 검색",
+                                                scheduleFilter,
+                                                setScheduleFilter,
+                                            ],
+                                            [
+                                                "AI 혜택",
+                                                "혜택 검색",
+                                                benefitsFilter,
+                                                setBenefitsFilter,
+                                            ],
+                                            [
+                                                "AI 신청 방법",
+                                                "신청 방법 검색",
+                                                applicationMethodFilter,
+                                                setApplicationMethodFilter,
+                                            ],
+                                            [
+                                                "AI 문의/참고",
+                                                "문의처 또는 참고 검색",
+                                                contactOrReferenceFilter,
+                                                setContactOrReferenceFilter,
+                                            ],
+                                            [
+                                                "AI 검토 메모",
+                                                "검토 메모 검색",
+                                                reviewNotesFilter,
+                                                setReviewNotesFilter,
+                                            ],
+                                        ] as const
+                                    ).map(
+                                        ([
+                                            label,
+                                            placeholder,
+                                            value,
+                                            setter,
+                                        ]) => (
+                                            <label
+                                                className="fieldset"
+                                                key={label}
+                                            >
+                                                <span className="label">
+                                                    {label}
+                                                </span>
+                                                <input
+                                                    aria-label={label}
+                                                    className="input w-full"
+                                                    onChange={(event) =>
+                                                        setter(
+                                                            event.currentTarget
+                                                                .value
+                                                        )
+                                                    }
+                                                    placeholder={placeholder}
+                                                    type="search"
+                                                    value={value}
+                                                />
+                                            </label>
+                                        )
+                                    )}
+                                    <fieldset className="fieldset">
+                                        <legend className="label">
+                                            AI 신청 마감일
+                                        </legend>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                aria-label="AI 신청 마감 시작일"
+                                                className="input min-w-0 flex-1"
+                                                onChange={(event) =>
+                                                    setApplicationDeadlineFrom(
+                                                        event.currentTarget
+                                                            .value
+                                                    )
+                                                }
+                                                type="date"
+                                                value={applicationDeadlineFrom}
+                                            />
+                                            <span>–</span>
+                                            <input
+                                                aria-label="AI 신청 마감 종료일"
+                                                className="input min-w-0 flex-1"
+                                                onChange={(event) =>
+                                                    setApplicationDeadlineTo(
+                                                        event.currentTarget
+                                                            .value
+                                                    )
+                                                }
+                                                type="date"
+                                                value={applicationDeadlineTo}
+                                            />
+                                        </div>
+                                    </fieldset>
+                                    <label className="fieldset">
                                         <span className="label">
-                                            홍보 초안 작성 상태
+                                            AI 홍보 초안 상태
                                         </span>
                                         <select
+                                            aria-label="AI 홍보 초안 상태"
                                             className="select w-full"
                                             onChange={(event) =>
                                                 setPromotionDraftFilter(
-                                                    event.currentTarget.value
+                                                    event.currentTarget
+                                                        .value as
+                                                        | "all"
+                                                        | "generated"
+                                                        | "missing"
                                                 )
                                             }
                                             value={promotionDraftFilter}
                                         >
                                             <option value="all">전체</option>
-                                            <option value="ready">
-                                                작성 완료
+                                            <option value="generated">
+                                                생성 완료
                                             </option>
                                             <option value="missing">
-                                                미작성
+                                                없음
                                             </option>
                                         </select>
                                     </label>
@@ -377,6 +611,15 @@ export default function Home() {
                                                 setSenderFilter("");
                                                 setDateFrom("");
                                                 setDateTo("");
+                                                setCategoryFilter("all");
+                                                setAudienceFilter("");
+                                                setScheduleFilter("");
+                                                setApplicationDeadlineFrom("");
+                                                setApplicationDeadlineTo("");
+                                                setBenefitsFilter("");
+                                                setApplicationMethodFilter("");
+                                                setContactOrReferenceFilter("");
+                                                setReviewNotesFilter("");
                                                 setPromotionDraftFilter("all");
                                             }}
                                             type="button"

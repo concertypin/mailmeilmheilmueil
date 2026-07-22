@@ -54,7 +54,7 @@ export default function MailReviewPanel({
     const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
 
     return (
-        <div className="space-y-6">
+        <div className="flex min-h-[calc(100dvh-15rem)] flex-col space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-5">
                 <div className="min-w-0">
                     <p className="text-sm text-base-content/60">
@@ -115,8 +115,8 @@ export default function MailReviewPanel({
                 </div>
             )}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-                <div className="space-y-6">
+            <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+                <div className="flex flex-col space-y-6">
                     {analysis ? (
                         <section className="card border border-base-300 bg-base-100 shadow-sm">
                             <div className="card-body gap-0 p-0">
@@ -195,15 +195,15 @@ export default function MailReviewPanel({
                         </section>
                     ) : null}
 
-                    <div className="grid gap-6 lg:grid-cols-2">
-                        <section className="card border border-base-300 bg-base-100 shadow-sm">
-                            <div className="card-body">
+                    <div className="grid flex-1 gap-6 lg:grid-cols-2">
+                        <section className="card h-full border border-base-300 bg-base-100 shadow-sm">
+                            <div className="card-body h-full">
                                 <h2 className="card-title">원본 메일</h2>
-                                <label className="fieldset mt-2">
+                                <label className="fieldset mt-2 flex flex-1 flex-col">
                                     <span className="label">원문 내용</span>
                                     <textarea
                                         aria-label="원문 내용"
-                                        className="textarea h-64 w-full resize-none bg-base-200"
+                                        className="textarea min-h-64 w-full flex-1 resize-none bg-base-200"
                                         readOnly
                                         value={item.textBody}
                                     />
@@ -212,16 +212,16 @@ export default function MailReviewPanel({
                         </section>
 
                         {analysis ? (
-                            <section className="card border border-primary/30 bg-base-100 shadow-sm">
-                                <div className="card-body">
+                            <section className="card h-full border border-primary/30 bg-base-100 shadow-sm">
+                                <div className="card-body h-full">
                                     <h2 className="card-title">
                                         홍보 문안 초안
                                     </h2>
-                                    <label className="fieldset">
+                                    <label className="fieldset mt-2 flex flex-1 flex-col">
                                         <span className="label">초안 내용</span>
                                         <textarea
                                             aria-label="홍보 문안 초안"
-                                            className="textarea h-64 w-full"
+                                            className="textarea min-h-64 w-full flex-1"
                                             onChange={(event) =>
                                                 setPromotionDraft(
                                                     event.currentTarget.value
@@ -267,7 +267,7 @@ export default function MailReviewPanel({
                 </div>
 
                 {analysis ? (
-                    <aside className="card h-fit border border-base-300 bg-base-100 shadow-sm xl:sticky xl:top-24">
+                    <aside className="card h-fit self-start border border-base-300 bg-base-100 shadow-sm xl:sticky xl:top-24">
                         <div className="card-body gap-0 p-0">
                             <div className="border-b border-base-300 p-5">
                                 <p className="text-sm font-semibold text-primary">
@@ -281,7 +281,7 @@ export default function MailReviewPanel({
                                     요청하세요.
                                 </p>
                             </div>
-                            <div className="min-h-72 space-y-4 p-5">
+                            <div className="space-y-4 p-5">
                                 <div className="chat chat-start">
                                     <div className="chat-bubble chat-bubble-neutral text-sm">
                                         현재 홍보 초안을 함께 다듬을 준비가

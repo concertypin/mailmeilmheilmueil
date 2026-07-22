@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { XIcon } from "@phosphor-icons/react";
 import { Link } from "wouter";
 
 const featureCards = [
@@ -309,12 +310,12 @@ export default function Landing() {
                 >
                     <div className="modal-box max-w-md">
                         <button
-                            className="btn btn-sm btn-circle btn-ghost absolute right-4 top-4"
+                            className="btn btn-md btn-circle btn-ghost absolute right-3 top-3"
                             aria-label="로그인 창 닫기"
                             onClick={() => setIsLoginOpen(false)}
                             type="button"
                         >
-                            ×
+                            <XIcon aria-hidden="true" size={22} weight="bold" />
                         </button>
                         <p className="text-sm font-semibold tracking-[0.16em] text-primary">
                             MAIL LENS
@@ -381,8 +382,7 @@ export default function Landing() {
                         </div>
                     </div>
                     <button
-                        className="modal-backdrop"
-                        aria-label="로그인 창 닫기"
+                        aria-label="모달 배경 닫기"
                         onClick={() => setIsLoginOpen(false)}
                         type="button"
                     />

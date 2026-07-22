@@ -47,7 +47,7 @@ export default function MailReview() {
     }
 
     return (
-        <div className="space-y-6 px-6 py-8 sm:px-8 lg:px-10">
+        <div className="min-h-[calc(100dvh-4.5rem)] space-y-6 px-6 py-8 sm:px-8 lg:px-10">
             <Link className="btn btn-ghost btn-sm" href="/inbox">
                 ← 메일함으로
             </Link>
@@ -67,18 +67,6 @@ export default function MailReview() {
                     <section className="card border border-base-300 bg-base-100 shadow-sm">
                         <div className="card-body p-0">
                             <div className="flex flex-wrap gap-2 border-b border-base-300 px-6 py-4">
-                                <button
-                                    className="btn btn-ghost btn-sm"
-                                    type="button"
-                                >
-                                    답장
-                                </button>
-                                <button
-                                    className="btn btn-ghost btn-sm"
-                                    type="button"
-                                >
-                                    전체 답장
-                                </button>
                                 <button
                                     className="btn btn-ghost btn-sm"
                                     type="button"

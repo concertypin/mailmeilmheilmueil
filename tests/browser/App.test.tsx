@@ -5,6 +5,8 @@ import { memoryLocation } from "wouter/memory-location";
 import { afterEach, expect, test, vi } from "vitest";
 import { type MailItem } from "@/lib/mail-schema";
 import Home from "@/pages/Home";
+import Landing from "@/pages/Landing";
+import MailReview from "@/pages/MailReview";
 import App from "@/App";
 import MailReviewPanel from "@/components/MailReviewPanel";
 
@@ -106,4 +108,133 @@ test("shows mail search and draft creation controls", async () => {
     await expect
         .element(screen.getByRole("heading", { name: "발송대기함" }))
         .toBeVisible();
+});
+
+test("filters the inbox by every AI metadata field", async () => {
+    const { hook, searchHook } = memoryLocation({ path: "/inbox" });
+    const screen = await render(
+        <Router hook={hook} searchHook={searchHook}>
+            <Home />
+        </Router>
+    );
+    const careerSubject = "2026 하계 데이터 분석 직업훈련 참가자 모집";
+    const welcomeSubject = "2026학년도 비교과 프로그램 참가자 모집";
+    const unprocessedSubject = "분석 진행 중인 산학협력 프로그램 안내";
+
+    const unprocessedBody =
+        "지역 기업과 함께하는 산학협력 프로그램 설명회와 현장실습 참가자를 안내합니다. 자세한 일정과 신청 방법은 분석이 완료되면 확인할 수 있습니다.";
+
+    await expect.element(screen.getByText(unprocessedBody)).toBeVisible();
+    await screen.getByRole("button", { name: "필터" }).click();
+    for (const label of [
+        "AI 분류",
+        "AI 모집 대상",
+        "AI 일정",
+        "AI 혜택",
+        "AI 신청 방법",
+        "AI 문의/참고",
+        "AI 검토 메모",
+        "AI 홍보 초안 상태",
+        "AI 신청 마감 시작일",
+        "AI 신청 마감 종료일",
+    ]) {
+        await expect.element(screen.getByLabelText(label)).toBeVisible();
+    }
+
+    const textFilters = [
+        ["AI 모집 대상", "취업 준비"],
+        ["AI 일정", "8월 10일"],
+        ["AI 혜택", "현직자 멘토링"],
+        ["AI 신청 방법", "온라인 사전"],
+        ["AI 문의/참고", "02-1234"],
+        ["AI 검토 메모", "수료 혜택"],
+    ] as const;
+    for (const [label, value] of textFilters) {
+        const input = screen.getByRole("searchbox", { name: label });
+        await input.fill(value);
+        await expect.element(screen.getByText(careerSubject)).toBeVisible();
+        await expect
+            .element(screen.getByText(welcomeSubject))
+            .not.toBeInTheDocument();
+        await input.fill("");
+    }
+
+    await screen
+        .getByRole("combobox", { name: "AI 분류" })
+        .selectOptions("직업훈련");
+    await expect.element(screen.getByText(careerSubject)).toBeVisible();
+    await expect
+        .element(screen.getByText(welcomeSubject))
+        .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "필터 초기화" }).click();
+
+    await screen
+        .getByRole("textbox", { name: "AI 신청 마감 시작일" })
+        .fill("2026-08-01");
+    await screen
+        .getByRole("textbox", { name: "AI 신청 마감 종료일" })
+        .fill("2026-08-31");
+    await expect.element(screen.getByText(careerSubject)).toBeVisible();
+    await expect
+        .element(screen.getByText(welcomeSubject))
+        .not.toBeInTheDocument();
+    await screen.getByRole("button", { name: "필터 초기화" }).click();
+
+    await screen
+        .getByRole("combobox", { name: "AI 홍보 초안 상태" })
+        .selectOptions("generated");
+    await expect.element(screen.getByText(careerSubject)).toBeVisible();
+    await expect.element(screen.getByText(welcomeSubject)).toBeVisible();
+    await expect
+        .element(screen.getByText(unprocessedSubject))
+        .not.toBeInTheDocument();
+    await screen
+        .getByRole("combobox", { name: "AI 홍보 초안 상태" })
+        .selectOptions("missing");
+    await expect.element(screen.getByText(unprocessedSubject)).toBeVisible();
+    await expect
+        .element(screen.getByText(careerSubject))
+        .not.toBeInTheDocument();
+
+    await screen
+        .getByRole("combobox", { name: "AI 홍보 초안 상태" })
+        .selectOptions("all");
+    await screen
+        .getByRole("searchbox", { name: "메일 검색" })
+        .fill("현직자 멘토링");
+    await expect.element(screen.getByText(careerSubject)).toBeVisible();
+    await expect
+        .element(screen.getByText(welcomeSubject))
+        .not.toBeInTheDocument();
+});
+
+test("closes the login modal with the visible X icon", async () => {
+    const screen = await render(<Landing />);
+
+    await screen.getByRole("button", { name: "로그인", exact: true }).click();
+    await expect
+        .element(screen.getByRole("button", { name: "로그인 창 닫기" }))
+        .toBeVisible();
+    await screen.getByRole("button", { name: "로그인 창 닫기" }).click();
+    await expect
+        .element(screen.getByRole("button", { name: "로그인 창 닫기" }))
+        .not.toBeInTheDocument();
+});
+
+test("omits reply actions from the mail detail view", async () => {
+    const { hook, searchHook } = memoryLocation({
+        path: "/mails/welcome-mail",
+    });
+    const screen = await render(
+        <Router hook={hook} searchHook={searchHook}>
+            <MailReview />
+        </Router>
+    );
+
+    await expect
+        .element(screen.getByRole("button", { name: "답장" }))
+        .not.toBeInTheDocument();
+    await expect
+        .element(screen.getByRole("button", { name: "전체 답장" }))
+        .not.toBeInTheDocument();
 });
