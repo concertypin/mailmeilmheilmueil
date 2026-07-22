@@ -241,10 +241,21 @@ export default function MailReviewPanel({
                                     {canReview ? (
                                         <button
                                             className="btn btn-primary mt-4 self-start"
+                                            disabled={
+                                                promotionDraft.trim().length ===
+                                                0
+                                            }
                                             onClick={() => {
-                                                void onReview(promotionDraft);
+                                                if (
+                                                    promotionDraft.trim()
+                                                        .length === 0
+                                                ) {
+                                                    return;
+                                                }
+                                                void onReview(
+                                                    promotionDraft.trim()
+                                                );
                                             }}
-                                            type="button"
                                         >
                                             검토 완료
                                         </button>
@@ -311,16 +322,30 @@ export default function MailReviewPanel({
                                     disabled={rewritePrompt.trim().length === 0}
                                     onClick={() => {
                                         const request = rewritePrompt.trim();
-                                        setPromotionDraft(
-                                            `${request}\n\n${promotionDraft}`
-                                        );
+                                        const firstSentence =
+                                            promotionDraft.match(
+                                                /^[\s\S]*?[.!?](?:\s|$)/
+                                            )?.[0] ?? promotionDraft;
+                                        const rewrittenDraft = request.includes(
+                                            "짧"
+                                        )
+                                            ? firstSentence.trim()
+                                            : request.includes("친근")
+                                              ? `안녕하세요!\n\n${promotionDraft}`
+                                              : request.includes("강조")
+                                                ? `${promotionDraft}\n\n지금 바로 확인해 보세요.`
+                                                : promotionDraft;
+                                        setPromotionDraft(rewrittenDraft);
                                         setConversation([
                                             ...conversation,
                                             { role: "user", content: request },
                                             {
                                                 role: "assistant",
                                                 content:
-                                                    "요청을 반영해 초안을 업데이트했습니다. 오른쪽 초안 내용을 확인해 주세요.",
+                                                    rewrittenDraft ===
+                                                    promotionDraft
+                                                        ? "요청을 확인했습니다. 현재 데모에서는 기존 초안을 유지했습니다."
+                                                        : "요청을 반영해 초안을 업데이트했습니다. 오른쪽 초안 내용을 확인해 주세요.",
                                             },
                                         ]);
                                         setRewritePrompt("");

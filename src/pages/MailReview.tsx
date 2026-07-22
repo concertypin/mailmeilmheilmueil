@@ -24,6 +24,10 @@ export default function MailReview() {
     const [reviewError, setReviewError] = useState<string | null>(null);
 
     function markReviewed(promotionDraft: string): Promise<void> {
+        if (promotionDraft.trim().length === 0) {
+            setReviewError("홍보 문안 초안을 입력해 주세요.");
+            return Promise.resolve();
+        }
         setReviewError(null);
         if (!item || item.status !== "ready") {
             setReviewError("아직 검토할 수 없는 메일입니다.");

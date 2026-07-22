@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
     AddressBookIcon,
     EnvelopeSimpleIcon,
@@ -34,6 +34,7 @@ export default function Contacts() {
     const [contacts, setContacts] = useState(initialContacts);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
+    const nextContactId = useRef(initialContacts.length);
     const { reviewedMailIds } = useMailWorkspace();
     const reviewCount = mockMailItems.filter(
         (item) => !reviewedMailIds.has(item.id) && item.analysis !== null
@@ -160,7 +161,7 @@ export default function Contacts() {
                                         setContacts([
                                             ...contacts,
                                             {
-                                                id: `${email.trim()}-${contacts.length}`,
+                                                id: `${email.trim()}-${nextContactId.current++}`,
                                                 name: name.trim(),
                                                 email: email.trim(),
                                             },
