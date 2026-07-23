@@ -144,7 +144,7 @@ export default function Home() {
         if (activeMailbox === "important") {
             return INITIAL_IMPORTANT_MAIL_IDS[item.id] === true;
         }
-        return item.status !== "reviewed";
+        return item.status !== "reviewed" && item.status !== "sent";
     });
     const activeMailboxTitle =
         activeMailbox === "inbox"

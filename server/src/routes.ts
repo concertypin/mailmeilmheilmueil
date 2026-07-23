@@ -170,30 +170,34 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 );
             }
 
-            const id = await repository.create({
-                senderName: credentials.account,
-                senderAddress: credentials.account,
-                recipients: parsed.data.to,
-                cc: parsed.data.cc,
-                bcc: parsed.data.bcc,
-                subject: parsed.data.subject,
-                textBody: parsed.data.body,
-                receivedAt: Timestamp.now(),
-                externalMessageId: null,
-                status: "sent",
-                processedAt: null,
-                reviewedAt: null,
-                failureMessage: null,
-                analysis: null,
-            });
+            try {
+                const id = await repository.create({
+                    senderName: credentials.account,
+                    senderAddress: credentials.account,
+                    recipients: parsed.data.to,
+                    cc: parsed.data.cc ?? [],
+                    bcc: parsed.data.bcc ?? [],
+                    subject: parsed.data.subject,
+                    textBody: parsed.data.body,
+                    receivedAt: Timestamp.now(),
+                    externalMessageId: null,
+                    status: "sent",
+                    processedAt: null,
+                    reviewedAt: null,
+                    failureMessage: null,
+                    analysis: null,
+                });
 
-            const created = await repository.get(id);
-            if (!created) {
-                return context.json(
-                    { error: "Failed to create sent mail" },
-                    500
-                );
+                const created = await repository.get(id);
+                if (!created) {
+                    return context.json(
+                        { error: "Failed to create sent mail" },
+                        500
+                    );
+                }
+                return context.json(toMailApiItem(created), 201);
+            } catch {
+                return context.json({ error: "Failed to send mail" }, 500);
             }
-            return context.json(toMailApiItem(created), 201);
         });
 }

@@ -1060,4 +1060,29 @@ describe("POST /api/compose — compose mail", () => {
         });
         expect(response.status).toBe(400);
     });
+
+    it("returns 201 without optional cc/bcc fields", async () => {
+        const repository = new ComposeRepository();
+        const routes = createRoutes({ repository });
+        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/compose", {
+            method: "POST",
+            headers: {
+                authorization: `Basic ${encoded}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                to: ["student@example.invalid"],
+                subject: "Minimal",
+                body: "No cc/bcc",
+            }),
+        });
+        expect(response.status).toBe(201);
+        const body = MailApiItemSchema.parse(await response.json());
+        expect(body.recipients).toEqual(["student@example.invalid"]);
+        expect(body.cc).toEqual([]);
+        expect(body.bcc).toEqual([]);
+    });
 });
