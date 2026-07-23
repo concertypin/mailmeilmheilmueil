@@ -118,14 +118,16 @@ export const ReviewMailRequestSchema = z.object({
     promotionDraft: z.string().trim().min(1),
 });
 
-export const ComposeRequestSchema = z.object({
-    to: z
-        .array(z.string().trim().min(1))
-        .min(1, "At least one recipient is required"),
-    cc: z.array(z.string().trim().min(1)).optional(),
-    bcc: z.array(z.string().trim().min(1)).optional(),
-    subject: z.string().trim().min(1, "Subject is required"),
-    body: z.string().trim().min(1, "Body is required"),
-});
+export const ComposeRequestSchema = z
+    .object({
+        to: z.array(z.string().trim().min(1)).optional(),
+        cc: z.array(z.string().trim().min(1)).optional(),
+        bcc: z.array(z.string().trim().min(1)).optional(),
+        subject: z.string().trim().min(1, "Subject is required"),
+        body: z.string().trim().min(1, "Body is required"),
+    })
+    .refine((data) => (data.to ?? []).length + (data.bcc ?? []).length > 0, {
+        message: "At least one recipient (to or bcc) is required",
+    });
 
 export type ComposeRequest = z.infer<typeof ComposeRequestSchema>;

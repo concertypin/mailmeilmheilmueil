@@ -286,7 +286,9 @@ export default function Home() {
                                     <span className="badge badge-sm">
                                         {items
                                             ? items.filter(
-                                                  (i) => i.status !== "reviewed"
+                                                  (i) =>
+                                                      i.status !== "reviewed" &&
+                                                      i.status !== "sent"
                                               ).length
                                             : "—"}
                                     </span>

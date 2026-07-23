@@ -174,7 +174,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 const id = await repository.create({
                     senderName: credentials.account,
                     senderAddress: credentials.account,
-                    recipients: parsed.data.to,
+                    recipients: parsed.data.to ?? [],
                     cc: parsed.data.cc ?? [],
                     bcc: parsed.data.bcc ?? [],
                     subject: parsed.data.subject,
