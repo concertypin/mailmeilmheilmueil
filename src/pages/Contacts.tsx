@@ -8,8 +8,7 @@ import {
     TrashIcon,
 } from "@phosphor-icons/react";
 import { Link } from "wouter";
-import { mockMailItems } from "@/lib/mock-mail";
-import { useMailWorkspace } from "@/lib/mail-workspace";
+import { useMailData } from "@/lib/mail-data";
 
 type Contact = {
     id: string;
@@ -35,10 +34,7 @@ export default function Contacts() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const nextContactId = useRef(initialContacts.length);
-    const { reviewedMailIds } = useMailWorkspace();
-    const reviewCount = mockMailItems.filter(
-        (item) => !reviewedMailIds.has(item.id) && item.analysis !== null
-    ).length;
+    const { items } = useMailData();
 
     return (
         <div className="min-h-[calc(100vh-4.5rem)] bg-base-200">
@@ -65,7 +61,11 @@ export default function Contacts() {
                                     />
                                     받은메일함
                                     <span className="badge badge-sm">
-                                        {mockMailItems.length}
+                                        {items
+                                            ? items.filter(
+                                                  (i) => i.status !== "reviewed"
+                                              ).length
+                                            : "—"}
                                     </span>
                                 </Link>
                             </li>
@@ -97,7 +97,13 @@ export default function Contacts() {
                                         </span>
                                     </span>
                                     <span className="badge badge-primary badge-sm">
-                                        {reviewCount}
+                                        {items
+                                            ? items.filter(
+                                                  (i) =>
+                                                      i.status === "ready" &&
+                                                      i.analysis !== null
+                                              ).length
+                                            : "—"}
                                     </span>
                                 </Link>
                             </li>
@@ -105,7 +111,11 @@ export default function Contacts() {
                                 <Link href="/inbox?folder=outbox">
                                     발송 대기
                                     <span className="badge badge-sm">
-                                        {reviewedMailIds.size}
+                                        {items
+                                            ? items.filter(
+                                                  (i) => i.status === "reviewed"
+                                              ).length
+                                            : "—"}
                                     </span>
                                 </Link>
                             </li>

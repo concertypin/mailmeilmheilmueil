@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { Agentation } from "agentation";
 import { Route, Switch } from "wouter";
 import App from "@/App";
-import { MailWorkspaceProvider } from "@/lib/mail-workspace";
+import { MailDataProvider } from "@/lib/mail-data";
 import Home from "@/pages/Home";
 import Contacts from "@/pages/Contacts";
 import Landing from "@/pages/Landing";
@@ -17,7 +17,7 @@ if (import.meta.env.DEV && !(root instanceof HTMLElement)) {
 
 createRoot(root!).render(
     <>
-        <MailWorkspaceProvider>
+        <MailDataProvider>
             <Switch>
                 <Route path="/" component={Landing} />
                 <Route path="/inbox">
@@ -37,7 +37,7 @@ createRoot(root!).render(
                 </Route>
                 <Route component={Landing} />
             </Switch>
-        </MailWorkspaceProvider>
+        </MailDataProvider>
         {import.meta.env.DEV ? <Agentation /> : null}
     </>
 );

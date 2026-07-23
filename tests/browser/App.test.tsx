@@ -9,6 +9,7 @@ import Landing from "@/pages/Landing";
 import MailReview from "@/pages/MailReview";
 import App from "@/App";
 import MailReviewPanel from "@/components/MailReviewPanel";
+import { MailDataProvider } from "@/lib/mail-data";
 
 afterEach(async () => {
     await cleanup();
@@ -76,9 +77,11 @@ test("shows original mail, structured analysis, draft, warning, and review actio
 test("shows the local mock inbox", async () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     const screen = await render(
-        <Router hook={hook} searchHook={searchHook}>
-            <Home />
-        </Router>
+        <MailDataProvider>
+            <Router hook={hook} searchHook={searchHook}>
+                <Home />
+            </Router>
+        </MailDataProvider>
     );
     await expect
         .element(screen.getByText("2026학년도 비교과 프로그램 참가자 모집"))
@@ -88,11 +91,13 @@ test("shows the local mock inbox", async () => {
 test("shows mail search and draft creation controls", async () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     const screen = await render(
-        <Router hook={hook} searchHook={searchHook}>
-            <App>
-                <Home />
-            </App>
-        </Router>
+        <MailDataProvider>
+            <Router hook={hook} searchHook={searchHook}>
+                <App>
+                    <Home />
+                </App>
+            </Router>
+        </MailDataProvider>
     );
     await expect
         .element(screen.getByRole("heading", { name: "받은메일함" }))
@@ -113,9 +118,11 @@ test("shows mail search and draft creation controls", async () => {
 test("filters the inbox by every AI metadata field", async () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     const screen = await render(
-        <Router hook={hook} searchHook={searchHook}>
-            <Home />
-        </Router>
+        <MailDataProvider>
+            <Router hook={hook} searchHook={searchHook}>
+                <Home />
+            </Router>
+        </MailDataProvider>
     );
     const careerSubject = "2026 하계 데이터 분석 직업훈련 참가자 모집";
     const welcomeSubject = "2026학년도 비교과 프로그램 참가자 모집";
@@ -226,9 +233,11 @@ test("omits reply actions from the mail detail view", async () => {
         path: "/mails/welcome-mail",
     });
     const screen = await render(
-        <Router hook={hook} searchHook={searchHook}>
-            <MailReview />
-        </Router>
+        <MailDataProvider>
+            <Router hook={hook} searchHook={searchHook}>
+                <MailReview />
+            </Router>
+        </MailDataProvider>
     );
 
     await expect

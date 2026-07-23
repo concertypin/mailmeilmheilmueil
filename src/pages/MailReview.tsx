@@ -1,49 +1,64 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "wouter";
-import { findMockMailItem } from "@/lib/mock-mail";
 import type { MailItem } from "@/lib/mail-schema";
-import { useMailWorkspace } from "@/lib/mail-workspace";
+import { useMailData } from "@/lib/mail-data";
 import MailReviewPanel from "@/components/MailReviewPanel";
 
 export default function MailReview() {
     const { mailId } = useParams();
     const [searchParams] = useSearchParams();
     const [, navigate] = useLocation();
-    const { markReviewed: moveToOutbox, draftsByMailId } = useMailWorkspace();
+    const { get, review } = useMailData();
     const isReviewMode = searchParams.get("mode") === "review";
-    const [item, setItem] = useState<MailItem | null>(() => {
-        const mockItem = mailId ? findMockMailItem(mailId) : null;
-        const promotionDraft = mailId ? draftsByMailId[mailId] : undefined;
-        return mockItem && promotionDraft !== undefined && mockItem.analysis
-            ? {
-                  ...mockItem,
-                  analysis: { ...mockItem.analysis, promotionDraft },
-              }
-            : mockItem;
-    });
+    const [item, setItem] = useState<MailItem | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [reviewError, setReviewError] = useState<string | null>(null);
 
-    function markReviewed(promotionDraft: string): Promise<void> {
+    useEffect(() => {
+        if (!mailId) {
+            setIsLoading(false);
+            return;
+        }
+        let cancelled = false;
+        setIsLoading(true);
+        setLoadError(null);
+        get(mailId)
+            .then((result) => {
+                if (!cancelled) {
+                    setItem(result);
+                    setIsLoading(false);
+                }
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) {
+                    setLoadError(
+                        err instanceof Error ? err.message : String(err)
+                    );
+                    setIsLoading(false);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [mailId, get]);
+
+    async function markReviewed(promotionDraft: string): Promise<void> {
         if (promotionDraft.trim().length === 0) {
             setReviewError("홍보 문안 초안을 입력해 주세요.");
-            return Promise.resolve();
+            return;
         }
         setReviewError(null);
         if (!item || item.status !== "ready") {
             setReviewError("아직 검토할 수 없는 메일입니다.");
-            return Promise.resolve();
+            return;
         }
-        setItem({
-            ...item,
-            status: "reviewed",
-            reviewedAt: item.receivedAt,
-            analysis: item.analysis
-                ? { ...item.analysis, promotionDraft }
-                : item.analysis,
-        });
-        moveToOutbox(item.id, promotionDraft);
-        navigate("/inbox?folder=outbox");
-        return Promise.resolve();
+        try {
+            await review(item, promotionDraft);
+            navigate("/inbox?folder=outbox");
+        } catch (err: unknown) {
+            setReviewError(err instanceof Error ? err.message : String(err));
+        }
     }
 
     return (
@@ -51,13 +66,23 @@ export default function MailReview() {
             <Link className="btn btn-ghost btn-sm" href="/inbox">
                 ← 메일함으로
             </Link>
-            {!item && (
+            {isLoading ? (
+                <div role="alert" className="alert alert-info">
+                    <span>메일을 불러오는 중...</span>
+                </div>
+            ) : null}
+            {loadError ? (
+                <div role="alert" className="alert alert-error">
+                    <span>메일을 불러오지 못했습니다: {loadError}</span>
+                </div>
+            ) : null}
+            {!isLoading && !loadError && !item ? (
                 <div role="alert" className="alert alert-warning">
                     <span>메일을 찾을 수 없습니다.</span>
                 </div>
-            )}
-            {item &&
-                (isReviewMode ? (
+            ) : null}
+            {item && !isLoading ? (
+                isReviewMode ? (
                     <MailReviewPanel
                         item={item}
                         onReview={markReviewed}
@@ -113,7 +138,8 @@ export default function MailReview() {
                             </article>
                         </div>
                     </section>
-                ))}
+                )
+            ) : null}
         </div>
     );
 }
