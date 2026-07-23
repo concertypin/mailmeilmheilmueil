@@ -18,6 +18,8 @@ import {
     ImapUnavailableError,
     syncInbox,
     type ImapClient,
+    type ImapCredentials,
+    type ImapSyncResult,
 } from "../../server/src/imap";
 import {
     credentialsFromEnv,
@@ -859,7 +861,17 @@ describe("POST /api/login — Basic auth", () => {
 });
 
 describe("POST /api/sync — Basic auth", () => {
-    const routes = createRoutes();
+    const fakeSync =
+        vi.fn<
+            (
+                _credentials: ImapCredentials,
+                _repository: MailRepository
+            ) => Promise<ImapSyncResult>
+        >();
+    const routes = createRoutes({
+        repository: new FakeRepository(),
+        sync: fakeSync,
+    });
 
     it("returns 401 without Authorization header", async () => {
         const response = await routes.request("/api/sync", { method: "POST" });
@@ -870,6 +882,11 @@ describe("POST /api/sync — Basic auth", () => {
     });
 
     it("returns 200 with valid Basic credentials", async () => {
+        fakeSync.mockResolvedValue({
+            imported: 1,
+            duplicates: 2,
+            rejected: 3,
+        });
         const encoded = Buffer.from("user@test.com:password").toString(
             "base64"
         );
@@ -879,9 +896,39 @@ describe("POST /api/sync — Basic auth", () => {
         });
         expect(response.status).toBe(200);
         expect(await response.json()).toMatchObject({
-            imported: 0,
-            duplicates: 0,
-            rejected: 0,
+            imported: 1,
+            duplicates: 2,
+            rejected: 3,
+        });
+    });
+
+    it("maps ImapCredentialError to 401", async () => {
+        fakeSync.mockRejectedValue(new ImapCredentialError("bad creds"));
+        const encoded = Buffer.from("user@test.com:password").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/sync", {
+            method: "POST",
+            headers: { authorization: `Basic ${encoded}` },
+        });
+        expect(response.status).toBe(401);
+        expect(await response.json()).toMatchObject({
+            error: "IMAP credentials are invalid",
+        });
+    });
+
+    it("maps ImapUnavailableError to 502", async () => {
+        fakeSync.mockRejectedValue(new ImapUnavailableError("server down"));
+        const encoded = Buffer.from("user@test.com:password").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/sync", {
+            method: "POST",
+            headers: { authorization: `Basic ${encoded}` },
+        });
+        expect(response.status).toBe(502);
+        expect(await response.json()).toMatchObject({
+            error: "IMAP server is unavailable",
         });
     });
 
@@ -894,7 +941,10 @@ describe("POST /api/sync — Basic auth", () => {
     });
 
     it("allows GET /api/mails without auth", async () => {
-        const localRoutes = createRoutes({ repository: new FakeRepository() });
+        const localRoutes = createRoutes({
+            repository: new FakeRepository(),
+            sync: fakeSync,
+        });
         const response = await localRoutes.request("/api/mails");
         expect(response.status).toBe(200);
     });
