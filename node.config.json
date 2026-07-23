@@ -9,6 +9,15 @@
                     "experimental-webstorage": false
                 }
             }
+        },
+        {
+            "nodeVersion": 26,
+            "config": {
+                "$schema": "https://nodejs.org/dist/latest-v26.x/docs/node-config-schema.json",
+                "nodeOptions": {
+                    "experimental-webstorage": false
+                }
+            }
         }
     ]
 }

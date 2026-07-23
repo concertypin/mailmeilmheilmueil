@@ -3,11 +3,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Router } from "wouter";
 import { memoryLocation } from "wouter/memory-location";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import Home from "@/pages/Home";
 import App from "@/App";
 import { MailDataProvider } from "@/lib/mail-data";
 import { fakeMailSource } from "@test/utils/test-data";
+import { createMockLocalStorage } from "@test/utils/mock/localStorage";
 
 test("shows the local mock inbox", () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
@@ -24,6 +25,7 @@ test("shows the local mock inbox", () => {
 });
 
 test("shows mail search and draft creation controls", async () => {
+    vi.stubGlobal("localStorage", createMockLocalStorage());
     const user = userEvent.setup();
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     render(
@@ -48,6 +50,7 @@ test("shows mail search and draft creation controls", async () => {
 });
 
 test("opens the AI filter panel and resets filters", async () => {
+    vi.stubGlobal("localStorage", createMockLocalStorage());
     const user = userEvent.setup();
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     render(

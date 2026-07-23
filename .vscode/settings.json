@@ -1,20 +1,12 @@
 {
-    "[javascript]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.tabSize": 4
-    },
-    "[typescript]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.tabSize": 4
-    },
-    "[json]": {
+    "[javascript][typescript][typescriptreact][javascriptreact]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode",
         "editor.tabSize": 4
     },
     "[css]": {
         "editor.defaultFormatter": "esbenp.prettier-vscode"
     },
-    "typescript.preferences.preferTypeOnlyAutoImports": true,
+    "js/ts.preferences.preferTypeOnlyAutoImports": true,
     "oxc.typeAware": true,
     "prettier.requireConfig": true,
     "files.exclude": {

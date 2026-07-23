@@ -15,6 +15,7 @@ const resolveAlias: Config["resolve"] = {
 };
 
 const testConfig: Config["test"] = {
+    unstubGlobals: true,
     coverage: {
         enabled: true,
         include: ["src/**/*.{ts,tsx}"],
