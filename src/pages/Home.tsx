@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
     AddressBookIcon,
     FunnelIcon,
@@ -59,6 +59,7 @@ export default function Home() {
     const [promotionDraftMessage, setPromotionDraftMessage] = useState<
         string | null
     >(null);
+    const flaggingRef = useRef(new Set<string>());
     const [searchParams] = useSearchParams();
     const [activeMailbox, setActiveMailbox] = useState<
         "inbox" | "important" | "review" | "outbox"
@@ -813,20 +814,28 @@ export default function Home() {
                                     }
                                     className={`btn btn-ghost btn-xs ${item.isImportant ? "text-yellow-500" : "text-base-content/30"}`}
                                     onClick={() => {
-                                        void fetch(
-                                            `/api/mails/${item.id}/flag`,
-                                            {
-                                                method: "POST",
-                                                headers: {
-                                                    "Content-Type":
-                                                        "application/json",
-                                                },
-                                                body: JSON.stringify({
-                                                    important:
-                                                        !item.isImportant,
-                                                }),
-                                            }
-                                        ).then(() => refresh());
+                                        const id = item.id;
+                                        if (flaggingRef.current.has(id)) return;
+                                        flaggingRef.current.add(id);
+                                        void fetch(`/api/mails/${id}/flag`, {
+                                            method: "POST",
+                                            headers: {
+                                                "Content-Type":
+                                                    "application/json",
+                                            },
+                                            body: JSON.stringify({
+                                                important: !item.isImportant,
+                                            }),
+                                        })
+                                            .then((res) => {
+                                                if (res.ok) void refresh();
+                                            })
+                                            .catch(() => {
+                                                /* ignore network errors */
+                                            })
+                                            .finally(() => {
+                                                flaggingRef.current.delete(id);
+                                            });
                                     }}
                                     type="button"
                                 >
