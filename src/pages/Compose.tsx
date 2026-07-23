@@ -26,8 +26,7 @@ export default function Compose() {
     const [subject, setSubject] = useState("");
     const [body, setBody] = useState("");
 
-    // ── Send notice ──────────────────────────────────────────────
-    const [showNotice, setShowNotice] = useState(false);
+    // ── Send (API-backed, P1b will wire up) ─────────────────────
 
     const resolved: ResolvedRecipients = useMemo(
         () => resolveRecipients(book, selections),
@@ -47,14 +46,12 @@ export default function Compose() {
             if (already) return prev;
             return [...prev, sel];
         });
-        setShowNotice(false);
     };
 
     const removeSelection = (sel: RecipientSelection) => {
         setSelections((prev) =>
             prev.filter((s) => !(s.kind === sel.kind && s.id === sel.id))
         );
-        setShowNotice(false);
     };
 
     // Build label maps
@@ -62,9 +59,7 @@ export default function Compose() {
     const groupLabel = (g: ContactGroup) =>
         `${g.name} (${g.memberIds.length}명)`;
 
-    const handleSendPrepare = () => {
-        setShowNotice(true);
-    };
+    const handleSendPrepare = () => {};
 
     // Find which contacts/groups are already selected
     const selectedContactIds = new Set(
@@ -373,7 +368,6 @@ export default function Compose() {
                                             setSubject(
                                                 event.currentTarget.value
                                             );
-                                            setShowNotice(false);
                                         }}
                                         placeholder="메일 제목을 입력해주세요."
                                         value={subject}
@@ -385,7 +379,6 @@ export default function Compose() {
                                         className="textarea textarea-bordered h-48 w-full"
                                         onChange={(event) => {
                                             setBody(event.currentTarget.value);
-                                            setShowNotice(false);
                                         }}
                                         placeholder="메일 내용을 입력해주세요."
                                         value={body}
@@ -409,16 +402,7 @@ export default function Compose() {
                                 />
                                 발송 준비
                             </button>
-                            {showNotice ? (
-                                <div
-                                    className="alert alert-info max-w-md"
-                                    role="status"
-                                >
-                                    <span>
-                                        발송 인프라가 아직 연결되지 않았습니다.
-                                    </span>
-                                </div>
-                            ) : null}
+                            {/* P1b will wire up the actual send API call */}
                         </div>
                     </div>
                 </main>

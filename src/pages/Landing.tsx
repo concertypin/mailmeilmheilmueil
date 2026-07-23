@@ -68,7 +68,7 @@ const featureCards = [
         eyebrow: "SIMPLE",
         title: "복잡한 설정 없이\n피드백에만 집중",
         description:
-            "지금은 로컬 목업 데이터로 UX 플로우를 빠르게 점검할 수 있습니다.",
+            "API 서버에서 메일 데이터를 불러와 빠르게 검토할 수 있습니다.",
         artwork: (
             <div className="grid grid-cols-2 gap-3 p-3">
                 {["메일", "분석", "검토", "완료"].map((label, index) => (
