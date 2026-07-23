@@ -101,6 +101,10 @@ export default function Home() {
                 headers: { authorization: auth },
             });
             if (!response.ok) {
+                if (response.status === 401) {
+                    redirectForInvalidImapCredentials();
+                    return;
+                }
                 const body: unknown = await response.json().catch(() => null);
                 const message =
                     body !== null &&
@@ -113,7 +117,13 @@ export default function Home() {
                 setSyncMessageKind("error");
                 return;
             }
-            await refresh();
+            try {
+                await refresh();
+            } catch {
+                setSyncMessage("메일함 업데이트에 실패했습니다.");
+                setSyncMessageKind("error");
+                return;
+            }
             setSyncMessage("메일함이 최신 상태로 업데이트되었습니다.");
             setSyncMessageKind("success");
         } catch {
@@ -123,7 +133,6 @@ export default function Home() {
             setIsSyncing(false);
         }
     };
-
     const visibleMailItems = (items ?? []).filter((item) => {
         if (activeMailbox === "review") {
             return item.status === "ready" && item.analysis !== null;
