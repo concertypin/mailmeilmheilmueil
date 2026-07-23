@@ -857,3 +857,44 @@ describe("POST /api/login — Basic auth", () => {
         expect(response.status).toBe(401);
     });
 });
+
+describe("POST /api/sync — Basic auth", () => {
+    const routes = createRoutes();
+
+    it("returns 401 without Authorization header", async () => {
+        const response = await routes.request("/api/sync", { method: "POST" });
+        expect(response.status).toBe(401);
+        expect(await response.json()).toMatchObject({
+            error: "IMAP credentials are required",
+        });
+    });
+
+    it("returns 200 with valid Basic credentials", async () => {
+        const encoded = Buffer.from("user@test.com:password").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/sync", {
+            method: "POST",
+            headers: { authorization: `Basic ${encoded}` },
+        });
+        expect(response.status).toBe(200);
+        expect(await response.json()).toMatchObject({
+            imported: 0,
+            duplicates: 0,
+            rejected: 0,
+        });
+    });
+
+    it("returns 401 for malformed credentials", async () => {
+        const response = await routes.request("/api/sync", {
+            method: "POST",
+            headers: { authorization: "Basic !!!invalid" },
+        });
+        expect(response.status).toBe(401);
+    });
+
+    it("allows GET /api/mails without auth", async () => {
+        const response = await routes.request("/api/mails");
+        expect(response.status).toBe(200);
+    });
+});
