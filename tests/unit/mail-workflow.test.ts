@@ -4,15 +4,15 @@ import {
     MailAnalysisSchema,
     MailApiItemSchema,
     type MailItem,
-} from "../../src/lib/mail-schema";
-import { parseMailSource } from "../../server/src/mail-parser";
+} from "@/lib/mail-schema";
+import { parseMailSource } from "@server/mail-parser";
 import {
     AI_FAILURE_MESSAGE,
     processMailItem,
     type MailAnalyzer,
-} from "../../server/src/processor";
-import type { MailRepository, MailUpdate } from "../../server/src/repository";
-import { createRoutes } from "../../server/src/routes";
+} from "@server/processor";
+import type { MailRepository, MailUpdate } from "@server/repository";
+import { createRoutes } from "@server/routes";
 import {
     ImapCredentialError,
     ImapUnavailableError,
@@ -20,13 +20,13 @@ import {
     type ImapClient,
     type ImapCredentials,
     type ImapSyncResult,
-} from "../../server/src/imap";
+} from "@server/imap";
 import {
     credentialsFromEnv,
     main,
     runSync,
     type SyncEnvironment,
-} from "../../server/src/sync-main";
+} from "@server/sync-main";
 import type { FetchMessageObject } from "imapflow";
 
 const analysis = {

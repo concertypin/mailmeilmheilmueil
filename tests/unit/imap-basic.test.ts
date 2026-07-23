@@ -5,16 +5,16 @@ import {
     loadImapBasicCredentials,
     saveImapBasicCredentials,
     clearImapBasicCredentials,
-} from "../../src/lib/imap-basic";
+} from "@/lib/imap-basic";
 
 describe("imap-basic helpers", () => {
     describe("encodeImapBasicAuthorization", () => {
-        it("encodes ASCII credentials", () => {
+        it.concurrent("encodes ASCII credentials", () => {
             const result = encodeImapBasicAuthorization("user", "pass");
             expect(result).toBe(`Basic ${btoa("user:pass")}`);
         });
 
-        it("encodes UTF-8 credentials", () => {
+        it.concurrent("encodes UTF-8 credentials", () => {
             const result = encodeImapBasicAuthorization(
                 "user@강남대학교",
                 "비밀번호"
@@ -34,7 +34,7 @@ describe("imap-basic helpers", () => {
     });
 
     describe("saveImapBasicCredentials / loadImapBasicCredentials", () => {
-        it("saves and loads credentials from storage", () => {
+        it.concurrent("saves and loads credentials from storage", () => {
             const storage = new Map<string, string>();
             const fakeStorage: Storage = {
                 getItem: (key) => storage.get(key) ?? null,
@@ -62,7 +62,7 @@ describe("imap-basic helpers", () => {
             });
         });
 
-        it("returns null for missing storage entry", () => {
+        it.concurrent("returns null for missing storage entry", () => {
             const fakeStorage: Storage = {
                 getItem: () => null,
                 setItem: () => {},
@@ -75,7 +75,7 @@ describe("imap-basic helpers", () => {
             expect(loadImapBasicCredentials(fakeStorage)).toBeNull();
         });
 
-        it("returns null and removes malformed entry", () => {
+        it.concurrent("returns null and removes malformed entry", () => {
             const storage = new Map<string, string>([
                 [IMAP_BASIC_STORAGE_KEY, "not-json"],
             ]);
@@ -95,32 +95,35 @@ describe("imap-basic helpers", () => {
             expect(storage.has(IMAP_BASIC_STORAGE_KEY)).toBe(false);
         });
 
-        it("returns null and removes entry with blank account", () => {
-            const storage = new Map<string, string>([
-                [
-                    IMAP_BASIC_STORAGE_KEY,
-                    JSON.stringify({ account: "", password: "secret" }),
-                ],
-            ]);
-            const fakeStorage: Storage = {
-                getItem: (key) => storage.get(key) ?? null,
-                setItem: () => {},
-                removeItem: (key) => {
-                    storage.delete(key);
-                },
-                length: storage.size,
-                clear: () => storage.clear(),
-                key: () => null,
-            };
+        it.concurrent(
+            "returns null and removes entry with blank account",
+            () => {
+                const storage = new Map<string, string>([
+                    [
+                        IMAP_BASIC_STORAGE_KEY,
+                        JSON.stringify({ account: "", password: "secret" }),
+                    ],
+                ]);
+                const fakeStorage: Storage = {
+                    getItem: (key) => storage.get(key) ?? null,
+                    setItem: () => {},
+                    removeItem: (key) => {
+                        storage.delete(key);
+                    },
+                    length: storage.size,
+                    clear: () => storage.clear(),
+                    key: () => null,
+                };
 
-            const result = loadImapBasicCredentials(fakeStorage);
-            expect(result).toBeNull();
-            expect(storage.has(IMAP_BASIC_STORAGE_KEY)).toBe(false);
-        });
+                const result = loadImapBasicCredentials(fakeStorage);
+                expect(result).toBeNull();
+                expect(storage.has(IMAP_BASIC_STORAGE_KEY)).toBe(false);
+            }
+        );
     });
 
     describe("clearImapBasicCredentials", () => {
-        it("removes the storage key", () => {
+        it.concurrent("removes the storage key", () => {
             const storage = new Map<string, string>([
                 [IMAP_BASIC_STORAGE_KEY, '{"a":"b"}'],
             ]);
