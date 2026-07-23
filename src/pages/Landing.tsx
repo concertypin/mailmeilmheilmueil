@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { XIcon } from "@phosphor-icons/react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import {
+    encodeImapBasicAuthorization,
+    saveImapBasicCredentials,
+} from "@/lib/imap-basic";
 
 const featureCards = [
     {
@@ -89,8 +93,61 @@ const featureCards = [
 ];
 
 export default function Landing() {
+    const [, setLocation] = useLocation();
     const [isLoginOpen, setIsLoginOpen] = useState(false);
     const [hasAgreedToTerms, setHasAgreedToTerms] = useState(false);
+    const [account, setAccount] = useState("");
+    const [password, setPassword] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [loginError, setLoginError] = useState<string | null>(null);
+
+    const canSubmit =
+        hasAgreedToTerms &&
+        account.trim().length > 0 &&
+        password.length > 0 &&
+        !isSubmitting;
+
+    const handleLogin = async () => {
+        if (!canSubmit) return;
+        setIsSubmitting(true);
+        setLoginError(null);
+
+        try {
+            const authHeader = encodeImapBasicAuthorization(
+                account.trim(),
+                password
+            );
+            const response = await fetch("/api/login", {
+                method: "POST",
+                headers: { authorization: authHeader },
+            });
+
+            if (response.status === 204) {
+                saveImapBasicCredentials({
+                    account: account.trim(),
+                    password,
+                });
+                setLocation("/inbox");
+                return;
+            }
+
+            const body: unknown = await response.json();
+            let message = "로그인에 실패했습니다. 다시 시도해 주세요.";
+            if (
+                typeof body === "object" &&
+                body !== null &&
+                "error" in body &&
+                typeof body.error === "string"
+            ) {
+                message = body.error;
+            }
+            setLoginError(message);
+        } catch {
+            setLoginError("로그인에 실패했습니다. 다시 시도해 주세요.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     return (
         <div className="min-h-screen overflow-x-hidden bg-base-100 text-base-content">
@@ -104,11 +161,11 @@ export default function Landing() {
                             메일렌즈
                         </Link>
                     </div>
-                    <nav className="navbar-center hidden gap-8 text-sm text-base-content/70 lg:flex">
+                    <div className="navbar-center hidden gap-8 text-sm text-base-content/70 lg:flex">
                         <a href="#overview">서비스 소개</a>
                         <a href="#features">주요 기능</a>
                         <a href="#flow">이용 흐름</a>
-                    </nav>
+                    </div>
                     <div className="navbar-end gap-2">
                         <button
                             className="btn btn-ghost btn-sm hidden sm:inline-flex"
@@ -327,65 +384,97 @@ export default function Landing() {
                             팀 메일함에 로그인
                         </h2>
                         <p className="mt-2 text-sm leading-6 text-base-content/65">
-                            UX 피드백용 프론트 데모입니다. 데모 메일함으로 바로
-                            이동할 수 있습니다.
+                            IMAP 계정으로 로그인하여 메일함을 불러옵니다.
                         </p>
                         <div className="mt-7 space-y-3">
-                            <label className="fieldset">
-                                <span className="label">이메일</span>
-                                <input
-                                    className="input w-full"
-                                    placeholder="team@example.com"
-                                    type="email"
-                                />
-                            </label>
-                            <label className="fieldset">
-                                <span className="label">비밀번호</span>
-                                <input
-                                    className="input w-full"
-                                    placeholder="••••••••"
-                                    type="password"
-                                />
-                            </label>
-                        </div>
-                        <label className="mt-5 flex cursor-pointer items-center gap-3 text-sm">
-                            <input
-                                aria-label="서비스 이용약관 동의"
-                                checked={hasAgreedToTerms}
-                                className="checkbox checkbox-primary checkbox-sm"
-                                onChange={(event) =>
-                                    setHasAgreedToTerms(
-                                        event.currentTarget.checked
-                                    )
-                                }
-                                type="checkbox"
-                            />
-                            <span>
-                                서비스 이용약관 및 개인정보 처리방침에
-                                동의합니다. (필수)
-                            </span>
-                        </label>
-                        <div className="modal-action mt-7 flex-col sm:flex-row">
-                            <button
-                                className="btn btn-ghost order-2 sm:order-1"
-                                onClick={() => setIsLoginOpen(false)}
-                                type="button"
+                            <form
+                                onSubmit={(event) => {
+                                    event.preventDefault();
+                                    void handleLogin();
+                                }}
                             >
-                                취소
-                            </button>
-                            <Link
-                                className="btn btn-primary order-1 sm:order-2"
-                                href="/inbox"
-                            >
-                                데모 메일함 들어가기
-                            </Link>
+                                <div className="mt-7 space-y-3">
+                                    <label className="fieldset">
+                                        <span className="label">이메일</span>
+                                        <input
+                                            className="input w-full"
+                                            onChange={(event) =>
+                                                setAccount(
+                                                    event.currentTarget.value
+                                                )
+                                            }
+                                            placeholder="team@example.com"
+                                            type="email"
+                                            value={account}
+                                        />
+                                    </label>
+                                    <label className="fieldset">
+                                        <span className="label">비밀번호</span>
+                                        <input
+                                            className="input w-full"
+                                            onChange={(event) =>
+                                                setPassword(
+                                                    event.currentTarget.value
+                                                )
+                                            }
+                                            placeholder="••••••••"
+                                            type="password"
+                                            value={password}
+                                        />
+                                    </label>
+                                </div>
+                                {loginError ? (
+                                    <div
+                                        className="alert alert-error mt-4"
+                                        role="alert"
+                                    >
+                                        <span>{loginError}</span>
+                                    </div>
+                                ) : null}
+                                <label className="mt-5 flex cursor-pointer items-center gap-3 text-sm">
+                                    <input
+                                        aria-label="서비스 이용약관 동의"
+                                        checked={hasAgreedToTerms}
+                                        className="checkbox checkbox-primary checkbox-sm"
+                                        onChange={(event) =>
+                                            setHasAgreedToTerms(
+                                                event.currentTarget.checked
+                                            )
+                                        }
+                                        type="checkbox"
+                                    />
+                                    <span>
+                                        서비스 이용약관 및 개인정보 처리방침에
+                                        동의합니다. (필수)
+                                    </span>
+                                </label>
+                                <div className="modal-action mt-7 flex-col sm:flex-row">
+                                    <button
+                                        className="btn btn-ghost order-2 sm:order-1"
+                                        onClick={() => setIsLoginOpen(false)}
+                                        type="button"
+                                    >
+                                        취소
+                                    </button>
+                                    <button
+                                        className="btn btn-primary order-1 sm:order-2"
+                                        disabled={!canSubmit}
+                                        type="submit"
+                                    >
+                                        {isSubmitting ? (
+                                            <span className="loading loading-spinner loading-sm" />
+                                        ) : null}
+                                        로그인
+                                    </button>
+                                </div>
+                            </form>
                         </div>
+                        <button
+                            aria-label="모달 배경 닫기"
+                            onClick={() => setIsLoginOpen(false)}
+                            type="button"
+                        />
                     </div>
-                    <button
-                        aria-label="모달 배경 닫기"
-                        onClick={() => setIsLoginOpen(false)}
-                        type="button"
-                    />
                 </div>
             ) : null}
         </div>
