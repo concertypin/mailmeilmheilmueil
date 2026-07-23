@@ -775,3 +775,85 @@ describe("mail list and get routes", () => {
         });
     });
 });
+
+describe("POST /api/login — Basic auth", () => {
+    const routes = createRoutes();
+
+    it("returns 204 for valid Basic credentials", async () => {
+        const encoded = Buffer.from("user@example.com:secret").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/login", {
+            method: "POST",
+            headers: { authorization: `Basic ${encoded}` },
+        });
+        expect(response.status).toBe(204);
+        expect(response.headers.get("set-cookie")).toBeNull();
+    });
+
+    it("returns 204 for UTF-8 credentials", async () => {
+        const encoded = Buffer.from(
+            "user@강남대학교:비밀번호!",
+            "utf-8"
+        ).toString("base64");
+        const response = await routes.request("/api/login", {
+            method: "POST",
+            headers: { authorization: `Basic ${encoded}` },
+        });
+        expect(response.status).toBe(204);
+    });
+
+    it("returns 204 for lowercase 'basic' scheme", async () => {
+        const encoded = Buffer.from("user:pass").toString("base64");
+        const response = await routes.request("/api/login", {
+            method: "POST",
+            headers: { authorization: `basic ${encoded}` },
+        });
+        expect(response.status).toBe(204);
+    });
+
+    it("returns 401 for missing Authorization header", async () => {
+        const response = await routes.request("/api/login", { method: "POST" });
+        expect(response.status).toBe(401);
+        expect(await response.json()).toMatchObject({
+            error: "IMAP credentials are required",
+        });
+        expect(response.headers.get("www-authenticate")).toBe(
+            'Basic realm="IMAP"'
+        );
+    });
+
+    it("returns 401 for non-Basic scheme", async () => {
+        const response = await routes.request("/api/login", {
+            method: "POST",
+            headers: { authorization: "Bearer token123" },
+        });
+        expect(response.status).toBe(401);
+    });
+
+    it("returns 401 for malformed base64", async () => {
+        const response = await routes.request("/api/login", {
+            method: "POST",
+            headers: { authorization: "Basic not-base64!!!" },
+        });
+        expect(response.status).toBe(401);
+    });
+
+    it("returns 401 for blank account", async () => {
+        const encoded = Buffer.from(":secret").toString("base64");
+        const response = await routes.request("/api/login", {
+            method: "POST",
+            headers: { authorization: `Basic ${encoded}` },
+        });
+        expect(response.status).toBe(401);
+    });
+
+    it("returns 401 for blank password", async () => {
+        const encoded = Buffer.from("user:").toString("base64");
+        const response = await routes.request("/api/login", {
+            method: "POST",
+            headers: { authorization: `Basic ${encoded}` },
+        });
+        expect(response.status).toBe(401);
+    });
+});

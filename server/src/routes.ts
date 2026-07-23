@@ -5,6 +5,7 @@ import {
     toMailApiItem,
 } from "../../src/lib/mail-schema";
 import { firestoreRepository, type MailRepository } from "./repository";
+import { parseImapBasicAuthorization } from "./basic-auth";
 
 export type RouteDependencies = {
     repository?: MailRepository;
@@ -15,6 +16,20 @@ export function createRoutes(dependencies: RouteDependencies = {}): Hono {
     const app = new Hono();
 
     app.get("/healthz", (context) => context.json({ status: "ok" }));
+
+    app.post("/api/login", (context) => {
+        const credentials = parseImapBasicAuthorization(
+            context.req.header("authorization")
+        );
+        if (!credentials) {
+            return context.json(
+                { error: "IMAP credentials are required" },
+                401,
+                { "WWW-Authenticate": 'Basic realm="IMAP"' }
+            );
+        }
+        return context.body(null, 204);
+    });
 
     app.get("/api/mails", async (context) => {
         const items = await repository.list();
