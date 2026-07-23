@@ -45,6 +45,7 @@ export default function Compose() {
 
     const canSend =
         !isSending &&
+        !sendSuccess &&
         resolved.to.length + resolved.bcc.length > 0 &&
         subject.trim().length > 0 &&
         body.trim().length > 0;
