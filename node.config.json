@@ -1,0 +1,14 @@
+{
+    "$schema": "https://nodejs.org/dist/latest-v26.x/docs/node-config-schema.json",
+    "configs": [
+        {
+            "nodeVersion": 25,
+            "config": {
+                "$schema": "https://nodejs.org/dist/latest-v25.x/docs/node-config-schema.json",
+                "nodeOptions": {
+                    "experimental-webstorage": false
+                }
+            }
+        }
+    ]
+}

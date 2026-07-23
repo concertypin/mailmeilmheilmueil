@@ -26,6 +26,7 @@ jobs:
     tests:
         runs-on: ubuntu-latest
         strategy:
+            fail-fast: false
             matrix:
                 shardIndex: [1, 2] # [1,2,3,4,5...]
                 shardTotal: [2] # [len(shardIndex)]
