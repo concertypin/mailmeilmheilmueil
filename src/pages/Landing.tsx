@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { XIcon } from "@phosphor-icons/react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import {
+    INVALID_IMAP_CREDENTIALS_MESSAGE,
+    clearImapBasicCredentials,
     encodeImapBasicAuthorization,
     saveImapBasicCredentials,
 } from "@/lib/imap-basic";
@@ -94,12 +96,25 @@ const featureCards = [
 
 export default function Landing() {
     const [, setLocation] = useLocation();
-    const [isLoginOpen, setIsLoginOpen] = useState(false);
+    const searchParams = useSearch();
+    const [isLoginOpen, setIsLoginOpen] = useState(() =>
+        searchParams.includes("imapCredentialsInvalid=1")
+    );
     const [hasAgreedToTerms, setHasAgreedToTerms] = useState(false);
     const [account, setAccount] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loginError, setLoginError] = useState<string | null>(null);
+    const [showInvalidAlert, setShowInvalidAlert] = useState(() =>
+        searchParams.includes("imapCredentialsInvalid=1")
+    );
+
+    // Clear the invalid-credential flag on mount
+    useEffect(() => {
+        if (searchParams.includes("imapCredentialsInvalid=1")) {
+            setLocation("/", { replace: true });
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const canSubmit =
         hasAgreedToTerms &&
@@ -386,6 +401,29 @@ export default function Landing() {
                         <p className="mt-2 text-sm leading-6 text-base-content/65">
                             IMAP 계정으로 로그인하여 메일함을 불러옵니다.
                         </p>
+                        {showInvalidAlert ? (
+                            <div
+                                className="alert alert-error mt-4"
+                                role="alert"
+                            >
+                                <span>{INVALID_IMAP_CREDENTIALS_MESSAGE}</span>
+                                <button
+                                    aria-label="알림 닫기"
+                                    className="btn btn-ghost btn-xs"
+                                    onClick={() => {
+                                        setShowInvalidAlert(false);
+                                        clearImapBasicCredentials();
+                                    }}
+                                    type="button"
+                                >
+                                    <XIcon
+                                        aria-hidden="true"
+                                        size={16}
+                                        weight="bold"
+                                    />
+                                </button>
+                            </div>
+                        ) : null}
                         <div className="mt-7 space-y-3">
                             <form
                                 onSubmit={(event) => {

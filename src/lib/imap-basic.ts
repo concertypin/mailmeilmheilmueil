@@ -71,3 +71,18 @@ export function clearImapBasicCredentials(storage?: Storage): void {
         // Storage may be unavailable
     }
 }
+
+export const INVALID_IMAP_CREDENTIALS_MESSAGE =
+    "IMAP 인증 정보가 유효하지 않습니다. 다시 로그인해 주세요.";
+
+export function redirectForInvalidImapCredentials(): void {
+    clearImapBasicCredentials();
+    window.location.assign("/?imapCredentialsInvalid=1");
+}
+
+export function throwIfUnauthorized(response: Response): void {
+    if (response.status === 401) {
+        redirectForInvalidImapCredentials();
+        throw new Error(INVALID_IMAP_CREDENTIALS_MESSAGE);
+    }
+}

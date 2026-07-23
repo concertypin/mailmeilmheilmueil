@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { MailItem } from "@/lib/mail-schema";
 import { fromMailApiItem, MailApiItemSchema } from "@/lib/mail-schema";
+import { throwIfUnauthorized } from "@/lib/imap-basic";
 
 export interface MailDataSource {
     readonly initialItems: readonly MailItem[] | null;
@@ -23,6 +24,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 async function parseApiError(res: Response): Promise<string> {
+    throwIfUnauthorized(res);
     const body: unknown = await res.json().catch(() => null);
     if (isRecord(body) && typeof body.error === "string") {
         return body.error;
