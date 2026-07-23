@@ -110,6 +110,11 @@ export function MailDataProvider({
         if (resolvedSource.initialItems) {
             return;
         }
+        // Avoid calling API when redirected due to invalid credentials
+        if (window.location.search.includes("imapCredentialsInvalid=1")) {
+            setIsLoading(false);
+            return;
+        }
         let cancelled = false;
         setIsLoading(true);
         setLoadError(null);
