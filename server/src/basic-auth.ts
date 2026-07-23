@@ -1,0 +1,35 @@
+import type { ImapCredentials } from "./imap";
+
+/**
+ * Parse an HTTP `Authorization: Basic <base64>` header into IMAP credentials.
+ * Returns null when the header is missing, has the wrong scheme, contains
+ * malformed base64, or has a blank account or password.
+ */
+export function parseImapBasicAuthorization(
+    authorization: string | undefined
+): ImapCredentials | null {
+    if (!authorization) return null;
+
+    const parts = authorization.split(/\s+/);
+    if (parts.length !== 2 || parts[0] !== "Basic") return null;
+
+    const encoded = parts[1];
+    if (!encoded) return null;
+
+    let decoded: string;
+    try {
+        decoded = Buffer.from(encoded, "base64").toString("utf-8");
+    } catch {
+        return null;
+    }
+
+    const colonIndex = decoded.indexOf(":");
+    if (colonIndex === -1) return null;
+
+    const account = decoded.slice(0, colonIndex);
+    const password = decoded.slice(colonIndex + 1);
+
+    if (account.length === 0 || password.length === 0) return null;
+
+    return { account, password };
+}
