@@ -469,12 +469,13 @@ export default function Landing() {
                                 </div>
                             </form>
                         </div>
-                        <button
-                            aria-label="모달 배경 닫기"
-                            onClick={() => setIsLoginOpen(false)}
-                            type="button"
-                        />
                     </div>
+                    <button
+                        aria-label="모달 배경 닫기"
+                        className="modal-backdrop"
+                        onClick={() => setIsLoginOpen(false)}
+                        type="button"
+                    />
                 </div>
             ) : null}
         </div>
