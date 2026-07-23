@@ -6,7 +6,7 @@ import {
     StarIcon,
     XIcon,
 } from "@phosphor-icons/react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useMailData } from "@/lib/mail-data";
 import { useAddressBook } from "@/lib/contact-book-data";
 import type {
@@ -16,17 +16,27 @@ import type {
     ResolvedRecipients,
 } from "@/lib/contact-book";
 import { resolveRecipients } from "@/lib/contact-book";
+import {
+    encodeImapBasicAuthorization,
+    loadImapBasicCredentials,
+    redirectForInvalidImapCredentials,
+    throwIfUnauthorized,
+} from "@/lib/imap-basic";
 
 export default function Compose() {
     const { book, storageWarning } = useAddressBook();
     const { items } = useMailData();
+    const [, navigate] = useLocation();
 
     // ── Recipient selection ──────────────────────────────────────
     const [selections, setSelections] = useState<RecipientSelection[]>([]);
     const [subject, setSubject] = useState("");
     const [body, setBody] = useState("");
 
-    // ── Send (API-backed, P1b will wire up) ─────────────────────
+    // ── Send state ───────────────────────────────────────────────
+    const [isSending, setIsSending] = useState(false);
+    const [sendError, setSendError] = useState<string | null>(null);
+    const [sendSuccess, setSendSuccess] = useState(false);
 
     const resolved: ResolvedRecipients = useMemo(
         () => resolveRecipients(book, selections),
@@ -34,32 +44,92 @@ export default function Compose() {
     );
 
     const canSend =
+        !isSending &&
+        !sendSuccess &&
         resolved.to.length + resolved.bcc.length > 0 &&
         subject.trim().length > 0 &&
         body.trim().length > 0;
 
     const addSelection = (sel: RecipientSelection) => {
-        setSelections((prev) => {
-            const already = prev.some(
-                (s) => s.kind === sel.kind && s.id === sel.id
-            );
-            if (already) return prev;
-            return [...prev, sel];
-        });
+        setSelections((prev) => [...prev, sel]);
     };
 
     const removeSelection = (sel: RecipientSelection) => {
         setSelections((prev) =>
-            prev.filter((s) => !(s.kind === sel.kind && s.id === sel.id))
+            prev.filter((s) => s.kind !== sel.kind || s.id !== sel.id)
         );
+    };
+
+    const clearForm = () => {
+        setSelections([]);
+        setSubject("");
+        setBody("");
+        setSendSuccess(false);
+        setSendError(null);
+    };
+
+    const handleSend = async () => {
+        const credentials = loadImapBasicCredentials();
+        if (!credentials) {
+            redirectForInvalidImapCredentials();
+            return;
+        }
+
+        setIsSending(true);
+        setSendError(null);
+        setSendSuccess(false);
+
+        try {
+            const to = resolved.to.map((c) => c.email);
+            const bcc = resolved.bcc.map((c) => c.email);
+            const response = await fetch("/api/compose", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    authorization: encodeImapBasicAuthorization(
+                        credentials.account,
+                        credentials.password
+                    ),
+                },
+                body: JSON.stringify({
+                    to: to.length > 0 ? to : undefined,
+                    bcc: bcc.length > 0 ? bcc : undefined,
+                    subject: subject.trim(),
+                    body: body.trim(),
+                }),
+            });
+
+            if (response.status === 401) {
+                throwIfUnauthorized(response);
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error("메일 발송에 실패했습니다.");
+            }
+
+            setSendSuccess(true);
+            setTimeout(() => {
+                clearForm();
+                navigate("/inbox");
+            }, 1500);
+        } catch (error: unknown) {
+            if (error instanceof TypeError) {
+                setSendError("네트워크 오류가 발생했습니다.");
+            } else if (error instanceof Error) {
+                setSendError(error.message);
+            } else {
+                setSendError("메일 발송에 실패했습니다.");
+            }
+        } finally {
+            setIsSending(false);
+        }
     };
 
     // Build label maps
     const contactLabel = (c: Contact) => `${c.alias} <${c.email}>`;
     const groupLabel = (g: ContactGroup) =>
         `${g.name} (${g.memberIds.length}명)`;
-
-    const handleSendPrepare = () => {};
 
     // Find which contacts/groups are already selected
     const selectedContactIds = new Set(
@@ -389,22 +459,47 @@ export default function Compose() {
                             </div>
                         </section>
 
-                        {/* ── Send-prepare button ──────────────────── */}
-                        <div className="mt-6 flex items-start gap-4">
-                            <button
-                                className="btn btn-primary"
-                                disabled={!canSend}
-                                onClick={handleSendPrepare}
-                                type="button"
-                            >
-                                <PaperPlaneRightIcon
-                                    aria-hidden="true"
-                                    size={18}
-                                    weight="bold"
-                                />
-                                발송 준비
-                            </button>
-                            {/* P1b will wire up the actual send API call */}
+                        {/* ── Send button ─────────────────────────── */}
+                        <div className="mt-6 flex flex-col gap-3">
+                            {sendError ? (
+                                <div className="alert alert-error" role="alert">
+                                    <span>{sendError}</span>
+                                </div>
+                            ) : null}
+                            {sendSuccess ? (
+                                <div
+                                    className="alert alert-success"
+                                    role="alert"
+                                >
+                                    <span>메일이 발송되었습니다.</span>
+                                </div>
+                            ) : null}
+                            <div className="flex items-start gap-4">
+                                <button
+                                    className="btn btn-primary"
+                                    disabled={!canSend}
+                                    onClick={() => {
+                                        void handleSend();
+                                    }}
+                                    type="button"
+                                >
+                                    {isSending ? (
+                                        <>
+                                            <span className="loading loading-spinner loading-sm" />
+                                            발송 중...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <PaperPlaneRightIcon
+                                                aria-hidden="true"
+                                                size={18}
+                                                weight="bold"
+                                            />
+                                            발송
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </main>
