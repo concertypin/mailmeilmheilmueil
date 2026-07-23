@@ -803,6 +803,15 @@ describe("POST /api/login — Basic auth", () => {
         expect(response.status).toBe(204);
     });
 
+    it("returns 204 for lowercase 'basic' scheme", async () => {
+        const encoded = Buffer.from("user:pass").toString("base64");
+        const response = await routes.request("/api/login", {
+            method: "POST",
+            headers: { authorization: `basic ${encoded}` },
+        });
+        expect(response.status).toBe(204);
+    });
+
     it("returns 401 for missing Authorization header", async () => {
         const response = await routes.request("/api/login", { method: "POST" });
         expect(response.status).toBe(401);

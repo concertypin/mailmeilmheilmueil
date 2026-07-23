@@ -11,10 +11,16 @@ export function parseImapBasicAuthorization(
     if (!authorization) return null;
 
     const parts = authorization.split(/\s+/);
-    if (parts.length !== 2 || parts[0] !== "Basic") return null;
+    const scheme = parts[0];
+    if (parts.length !== 2 || !scheme || scheme.toLowerCase() !== "basic")
+        return null;
 
     const encoded = parts[1];
     if (!encoded) return null;
+
+    // Strict base64 validation: reject non-alphabet characters and invalid padding
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) return null;
+    if (encoded.length % 4 !== 0) return null;
 
     let decoded: string;
     try {
