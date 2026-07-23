@@ -98,7 +98,7 @@ test("compose page resolves contact and group into To/Bcc", async () => {
         "테스트 내용입니다."
     );
 
-    await user.click(screen.getByRole("button", { name: "발송 준비" }));
+    await user.click(screen.getByRole("button", { name: "발송" }));
 
     expect(screen.queryByText("발송되었습니다")).not.toBeInTheDocument();
 });
