@@ -97,8 +97,8 @@ interface MailDataContextValue {
     items: MailItem[] | null;
     isLoading: boolean;
     loadError: string | null;
-    get(id: string): Promise<MailItem | null>;
-    review(item: MailItem, promotionDraft: string): Promise<MailItem>;
+    get: (id: string) => Promise<MailItem | null>;
+    review: (item: MailItem, promotionDraft: string) => Promise<MailItem>;
 }
 
 const MailDataContext = createContext<MailDataContextValue>({
@@ -144,8 +144,13 @@ export function MailDataProvider({
             .list()
             .then((result) => {
                 if (!cancelled) {
-                    setItems(result);
-                    setIsLoading(false);
+                    setItems((prev) => {
+                        if (!prev) return result;
+                        const prevMap = new Map(prev.map((i) => [i.id, i]));
+                        return result.map(
+                            (item) => prevMap.get(item.id) ?? item
+                        );
+                    });
                 }
             })
             .catch((err: unknown) => {

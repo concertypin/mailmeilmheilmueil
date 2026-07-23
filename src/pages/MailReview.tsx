@@ -8,7 +8,7 @@ export default function MailReview() {
     const { mailId } = useParams();
     const [searchParams] = useSearchParams();
     const [, navigate] = useLocation();
-    const mailData = useMailData();
+    const { get, review } = useMailData();
     const isReviewMode = searchParams.get("mode") === "review";
     const [item, setItem] = useState<MailItem | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -23,8 +23,7 @@ export default function MailReview() {
         let cancelled = false;
         setIsLoading(true);
         setLoadError(null);
-        mailData
-            .get(mailId)
+        get(mailId)
             .then((result) => {
                 if (!cancelled) {
                     setItem(result);
@@ -42,7 +41,7 @@ export default function MailReview() {
         return () => {
             cancelled = true;
         };
-    }, [mailId, mailData]);
+    }, [mailId, get]);
 
     async function markReviewed(promotionDraft: string): Promise<void> {
         if (promotionDraft.trim().length === 0) {
@@ -55,7 +54,7 @@ export default function MailReview() {
             return;
         }
         try {
-            await mailData.review(item, promotionDraft);
+            await review(item, promotionDraft);
             navigate("/inbox?folder=outbox");
         } catch (err: unknown) {
             setReviewError(err instanceof Error ? err.message : String(err));
