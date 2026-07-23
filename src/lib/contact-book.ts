@@ -624,31 +624,33 @@ export function resolveRecipients(
     const toEmails = new Set<string>();
     const bccEmails = new Set<string>();
 
+    // First pass: resolve direct contacts into `to`.
     for (const sel of selections) {
-        if (sel.kind === "contact") {
-            const contact = contactMap.get(sel.id);
-            if (!contact) continue;
-            const ne = normalizeEmail(contact.email);
-            if (!toEmails.has(ne)) {
-                toEmails.add(ne);
-                to.push(contact);
-            }
-        } else {
-            // kind === "group"
-            const group = groupMap.get(sel.id);
-            if (!group) continue;
-            for (const mid of group.memberIds) {
-                const member = contactMap.get(mid);
-                if (!member) continue;
-                const ne = normalizeEmail(member.email);
-                if (toEmails.has(ne)) {
-                    // Already in To — skip Bcc to avoid duplication.
-                    continue;
-                }
-                if (!bccEmails.has(ne)) {
-                    bccEmails.add(ne);
-                    bcc.push(member);
-                }
+        if (sel.kind !== "contact") continue;
+        const contact = contactMap.get(sel.id);
+        if (!contact) continue;
+        const ne = normalizeEmail(contact.email);
+        if (!toEmails.has(ne)) {
+            toEmails.add(ne);
+            to.push(contact);
+        }
+    }
+
+    // Second pass: resolve groups into `bcc`, skipping addresses already
+    // in `to` (whether added by a direct selection or a previously resolved
+    // group).
+    for (const sel of selections) {
+        if (sel.kind !== "group") continue;
+        const group = groupMap.get(sel.id);
+        if (!group) continue;
+        for (const mid of group.memberIds) {
+            const member = contactMap.get(mid);
+            if (!member) continue;
+            const ne = normalizeEmail(member.email);
+            if (toEmails.has(ne)) continue;
+            if (!bccEmails.has(ne)) {
+                bccEmails.add(ne);
+                bcc.push(member);
             }
         }
     }

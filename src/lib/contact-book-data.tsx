@@ -3,7 +3,9 @@
  *
  * Exposes the current `ContactBook`, pure CRUD callbacks, and a
  * `storageWarning` flag.  Each successful mutation is persisted to
- * `localStorage` automatically.
+ * `localStorage` automatically.  If the store was corrupt on load but is
+ * writable, the first mutation overwrites the corrupt data and clears the
+ * warning.
  *
  * @module contact-book-data
  */
@@ -74,17 +76,30 @@ export function AddressBookProvider({
         loadContactBook(storage)
     );
 
+    /** Attempt to persist the book; returns true if the write succeeded. */
+    const trySave = useCallback(
+        (next: ContactBook): boolean => {
+            const saved = saveContactBook(storage, next);
+            return saved;
+        },
+        [storage]
+    );
+
+    /** Persist on successful mutation and clear warning if recovery worked. */
     const persist = useCallback(
         (result: ContactBookMutationResult) => {
             if (result.ok) {
-                setState({ book: result.book, storageWarning });
-                if (!storageWarning) {
-                    saveContactBook(storage, result.book);
-                }
+                const saved = trySave(result.book);
+                setState({
+                    book: result.book,
+                    // Keep warning only when storage remains unavailable even
+                    // after a successful mutation overwrites corrupt data.
+                    storageWarning: storageWarning && !saved,
+                });
             }
             return result;
         },
-        [storage, storageWarning]
+        [storageWarning, trySave]
     );
 
     const ctx = useMemo((): AddressBookContextValue => {
@@ -96,10 +111,11 @@ export function AddressBookProvider({
 
         const removeContactCb = (id: string) => {
             const next = removeContact(book, id);
-            setState({ book: next, storageWarning });
-            if (!storageWarning) {
-                saveContactBook(storage, next);
-            }
+            const saved = trySave(next);
+            setState({
+                book: next,
+                storageWarning: storageWarning && !saved,
+            });
         };
 
         const addGroupCb = (input: ContactGroupInput) =>
@@ -110,10 +126,11 @@ export function AddressBookProvider({
 
         const removeGroupCb = (id: string) => {
             const next = removeGroup(book, id);
-            setState({ book: next, storageWarning });
-            if (!storageWarning) {
-                saveContactBook(storage, next);
-            }
+            const saved = trySave(next);
+            setState({
+                book: next,
+                storageWarning: storageWarning && !saved,
+            });
         };
 
         return {
@@ -126,7 +143,7 @@ export function AddressBookProvider({
             updateGroup: updateGroupCb,
             removeGroup: removeGroupCb,
         };
-    }, [book, storage, storageWarning, persist]);
+    }, [book, storageWarning, persist, trySave]);
 
     return (
         <AddressBookContext.Provider value={ctx}>
