@@ -10,6 +10,11 @@ import {
 import { Link, useSearchParams } from "wouter";
 import { useMailData } from "@/lib/mail-data";
 import {
+    encodeImapBasicAuthorization,
+    loadImapBasicCredentials,
+    redirectForInvalidImapCredentials,
+} from "@/lib/imap-basic";
+import {
     mailCategories,
     type MailAnalysis,
     type MailItem,
@@ -68,7 +73,57 @@ export default function Home() {
             ? folder
             : "inbox";
     });
-    const { items, isLoading, loadError } = useMailData();
+    const { items, isLoading, loadError, refresh } = useMailData();
+
+    // ── Sync state ────────────────────────────────────────────────
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [syncMessage, setSyncMessage] = useState<string | null>(null);
+    const [syncMessageKind, setSyncMessageKind] = useState<
+        "success" | "error" | null
+    >(null);
+
+    const handleSync = async () => {
+        const credentials = loadImapBasicCredentials();
+        if (!credentials) {
+            redirectForInvalidImapCredentials();
+            return;
+        }
+        setIsSyncing(true);
+        setSyncMessage(null);
+        setSyncMessageKind(null);
+        try {
+            const auth = encodeImapBasicAuthorization(
+                credentials.account,
+                credentials.password
+            );
+            const response = await fetch("/api/sync", {
+                method: "POST",
+                headers: { authorization: auth },
+            });
+            if (!response.ok) {
+                const body: unknown = await response.json().catch(() => null);
+                const message =
+                    body !== null &&
+                    typeof body === "object" &&
+                    "error" in body &&
+                    typeof body.error === "string"
+                        ? body.error
+                        : "동기화에 실패했습니다.";
+                setSyncMessage(message);
+                setSyncMessageKind("error");
+                return;
+            }
+            await refresh();
+            setSyncMessage("메일함이 최신 상태로 업데이트되었습니다.");
+            setSyncMessageKind("success");
+        } catch {
+            setSyncMessage("동기화에 실패했습니다.");
+            setSyncMessageKind("error");
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     const visibleMailItems = (items ?? []).filter((item) => {
         if (activeMailbox === "review") {
             return item.status === "ready" && item.analysis !== null;
@@ -92,7 +147,8 @@ export default function Home() {
     const filteredMailItems = visibleMailItems.filter((item) => {
         const receivedDate = item.receivedAt
             .toDate()
-            .toLocaleDateString("sv-SE");
+            .toISOString()
+            .slice(0, 10);
         const analysis = item.analysis;
         const searchableText = [
             item.senderName,
@@ -121,69 +177,50 @@ export default function Home() {
             item.senderAddress.toLowerCase().includes(senderQuery);
         const matchesDateFrom = dateFrom === "" || receivedDate >= dateFrom;
         const matchesDateTo = dateTo === "" || receivedDate <= dateTo;
-        const deadline = analysis?.applicationDeadline;
         const matchesCategory =
             categoryFilter === "all" || analysis?.category === categoryFilter;
+        const audienceQuery = audienceFilter.trim().toLowerCase();
         const matchesAudience =
-            !audienceFilter ||
-            Boolean(
-                analysis?.audience
-                    ?.toLowerCase()
-                    .includes(audienceFilter.trim().toLowerCase())
-            );
+            audienceQuery === "" ||
+            (analysis?.audience ?? "").toLowerCase().includes(audienceQuery);
+        const scheduleQuery = scheduleFilter.trim().toLowerCase();
         const matchesSchedule =
-            !scheduleFilter ||
-            Boolean(
-                analysis?.schedule
-                    ?.toLowerCase()
-                    .includes(scheduleFilter.trim().toLowerCase())
-            );
-        const matchesDeadlineFrom =
-            !applicationDeadlineFrom ||
-            (deadline !== null &&
-                deadline !== undefined &&
-                deadline >= applicationDeadlineFrom);
-        const matchesDeadlineTo =
-            !applicationDeadlineTo ||
-            (deadline !== null &&
-                deadline !== undefined &&
-                deadline <= applicationDeadlineTo);
+            scheduleQuery === "" ||
+            (analysis?.schedule ?? "").toLowerCase().includes(scheduleQuery);
+        const matchesDeadlineRange =
+            applicationDeadlineFrom === "" ||
+            (analysis?.applicationDeadline ?? "") >= applicationDeadlineFrom;
+        const matchesDeadlineRangeTo =
+            applicationDeadlineTo === "" ||
+            (analysis?.applicationDeadline ?? "") <= applicationDeadlineTo;
+        const benefitsQuery = benefitsFilter.trim().toLowerCase();
         const matchesBenefits =
-            !benefitsFilter ||
-            Boolean(
-                analysis?.benefits
-                    ?.toLowerCase()
-                    .includes(benefitsFilter.trim().toLowerCase())
-            );
-        const matchesApplicationMethod =
-            !applicationMethodFilter ||
-            Boolean(
-                analysis?.applicationMethod
-                    ?.toLowerCase()
-                    .includes(applicationMethodFilter.trim().toLowerCase())
-            );
-        const matchesContactOrReference =
-            !contactOrReferenceFilter ||
-            Boolean(
-                analysis?.contactOrReference
-                    ?.toLowerCase()
-                    .includes(contactOrReferenceFilter.trim().toLowerCase())
-            );
+            benefitsQuery === "" ||
+            (analysis?.benefits ?? "").toLowerCase().includes(benefitsQuery);
+        const methodQuery = applicationMethodFilter.trim().toLowerCase();
+        const matchesMethod =
+            methodQuery === "" ||
+            (analysis?.applicationMethod ?? "")
+                .toLowerCase()
+                .includes(methodQuery);
+        const contactQuery = contactOrReferenceFilter.trim().toLowerCase();
+        const matchesContact =
+            contactQuery === "" ||
+            (analysis?.contactOrReference ?? "")
+                .toLowerCase()
+                .includes(contactQuery);
+        const notesQuery = reviewNotesFilter.trim().toLowerCase();
         const matchesReviewNotes =
-            !reviewNotesFilter ||
-            Boolean(
-                analysis?.reviewNotes.some((note) =>
-                    note
-                        .toLowerCase()
-                        .includes(reviewNotesFilter.trim().toLowerCase())
-                )
+            notesQuery === "" ||
+            (analysis?.reviewNotes ?? []).some((note) =>
+                note.toLowerCase().includes(notesQuery)
             );
-        const hasPromotionDraft = Boolean(analysis?.promotionDraft);
         const matchesPromotionDraft =
             promotionDraftFilter === "all" ||
-            (promotionDraftFilter === "generated"
-                ? hasPromotionDraft
-                : !hasPromotionDraft);
+            (promotionDraftFilter === "generated" &&
+                (analysis?.promotionDraft ?? "").trim().length > 0) ||
+            (promotionDraftFilter === "missing" &&
+                (analysis?.promotionDraft ?? "").trim().length === 0);
 
         return (
             matchesSearch &&
@@ -193,11 +230,11 @@ export default function Home() {
             matchesCategory &&
             matchesAudience &&
             matchesSchedule &&
-            matchesDeadlineFrom &&
-            matchesDeadlineTo &&
+            matchesDeadlineRange &&
+            matchesDeadlineRangeTo &&
             matchesBenefits &&
-            matchesApplicationMethod &&
-            matchesContactOrReference &&
+            matchesMethod &&
+            matchesContact &&
             matchesReviewNotes &&
             matchesPromotionDraft
         );
@@ -402,7 +439,30 @@ export default function Home() {
                                     <FunnelIcon aria-hidden="true" size={17} />
                                     필터
                                 </button>
+                                <button
+                                    className="btn btn-sm"
+                                    disabled={isSyncing}
+                                    onClick={() => void handleSync()}
+                                    type="button"
+                                >
+                                    {isSyncing ? (
+                                        <span className="loading loading-spinner loading-sm" />
+                                    ) : null}
+                                    메일 동기화
+                                </button>
                             </div>
+                            {syncMessage ? (
+                                <div
+                                    className={`alert mt-4 ${
+                                        syncMessageKind === "error"
+                                            ? "alert-error"
+                                            : "alert-success"
+                                    }`}
+                                    role="alert"
+                                >
+                                    <span>{syncMessage}</span>
+                                </div>
+                            ) : null}
                         </div>
 
                         {isFilterOpen ? (

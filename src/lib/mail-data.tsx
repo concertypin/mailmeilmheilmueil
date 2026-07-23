@@ -76,6 +76,7 @@ interface MailDataContextValue {
     loadError: string | null;
     get: (id: string) => Promise<MailItem | null>;
     review: (item: MailItem, promotionDraft: string) => Promise<MailItem>;
+    refresh: () => Promise<void>;
 }
 
 const MailDataContext = createContext<MailDataContextValue>({
@@ -84,6 +85,7 @@ const MailDataContext = createContext<MailDataContextValue>({
     loadError: null,
     get: () => Promise.resolve(null),
     review: () => Promise.reject(new Error("MailDataProvider not mounted")),
+    refresh: () => Promise.reject(new Error("MailDataProvider not mounted")),
 });
 
 export function MailDataProvider({
@@ -178,9 +180,22 @@ export function MailDataProvider({
         [resolvedSource]
     );
 
+    const refresh = useCallback(async () => {
+        setIsLoading(true);
+        setLoadError(null);
+        try {
+            const result = await resolvedSource.list();
+            setItems(result);
+        } catch (err: unknown) {
+            setLoadError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsLoading(false);
+        }
+    }, [resolvedSource]);
+
     const value = useMemo<MailDataContextValue>(
-        () => ({ items, isLoading, loadError, get, review }),
-        [items, isLoading, loadError, get, review]
+        () => ({ items, isLoading, loadError, get, review, refresh }),
+        [items, isLoading, loadError, get, review, refresh]
     );
 
     return (
