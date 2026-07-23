@@ -9,7 +9,7 @@ import Landing from "@/pages/Landing";
 import MailReview from "@/pages/MailReview";
 import App from "@/App";
 import MailReviewPanel from "@/components/MailReviewPanel";
-import { MailDataProvider } from "@/lib/mail-data";
+import { MailDataProvider, type MailDataSource } from "@/lib/mail-data";
 import { AddressBookProvider } from "@/lib/contact-book-data";
 import Compose from "@/pages/Compose";
 import Contacts from "@/pages/Contacts";
@@ -52,6 +52,83 @@ const readyItem = {
     },
 } satisfies MailItem;
 
+const inboxItems: MailItem[] = [
+    {
+        id: "welcome-mail",
+        senderName: "강남대학교 학생지원팀",
+        senderAddress: "student-support@kangnam.ac.kr",
+        recipients: ["staff@example.com"],
+        subject: "2026학년도 비교과 프로그램 참가자 모집",
+        textBody:
+            "학생들의 진로와 역량 개발을 위한 비교과 프로그램 참가자를 모집합니다.",
+        receivedAt: Timestamp.now(),
+        externalMessageId: null,
+        status: "ready",
+        processedAt: Timestamp.now(),
+        reviewedAt: null,
+        failureMessage: null,
+        analysis: {
+            category: "외부 프로그램",
+            audience: "강남대학교 재학생",
+            schedule: "2026년 8월 중 진행",
+            applicationDeadline: "2026-07-31",
+            benefits: "참가 수료증 및 비교과 마일리지 제공",
+            applicationMethod: "학생역량개발시스템에서 신청",
+            contactOrReference: "학생지원팀 02-0000-0000",
+            reviewNotes: ["모집 기간과 신청 방법을 확인했습니다."],
+            promotionDraft:
+                "학생들의 성장을 지원하는 비교과 프로그램 참가자를 모집합니다.",
+        },
+    },
+    {
+        id: "career-training-mail",
+        senderName: "미래직업교육원",
+        senderAddress: "career@example.invalid",
+        recipients: ["staff@example.com"],
+        subject: "2026 하계 데이터 분석 직업훈련 참가자 모집",
+        textBody:
+            "취업 준비생을 위한 실무 중심 데이터 분석 직업훈련 참가자를 모집합니다.",
+        receivedAt: Timestamp.now(),
+        externalMessageId: null,
+        status: "ready",
+        processedAt: Timestamp.now(),
+        reviewedAt: null,
+        failureMessage: null,
+        analysis: {
+            category: "직업훈련",
+            audience: "취업 준비 중인 재학생",
+            schedule: "2026년 8월 10일~14일",
+            applicationDeadline: "2026-08-05",
+            benefits: "현직자 멘토링 및 수료증",
+            applicationMethod: "온라인 사전 신청",
+            contactOrReference: "미래직업교육원 02-1234-5678",
+            reviewNotes: ["교육 일정과 수료 혜택을 확인했습니다."],
+            promotionDraft:
+                "현직자 멘토링과 함께하는 데이터 분석 직업훈련 참가자를 모집합니다.",
+        },
+    },
+];
+
+function createFakeMailDataSource(items: MailItem[]): MailDataSource {
+    const itemMap = new Map(items.map((i) => [i.id, i]));
+    return {
+        initialItems: items,
+        list: () => Promise.resolve([...items]),
+        get: (id: string) => Promise.resolve(itemMap.get(id) ?? null),
+        review: (item: MailItem, draft: string) =>
+            Promise.resolve({
+                ...item,
+                status: "reviewed" as const,
+                reviewedAt: Timestamp.now(),
+                analysis: item.analysis
+                    ? { ...item.analysis, promotionDraft: draft.trim() }
+                    : item.analysis,
+            }),
+    };
+}
+
+const fakeMailSource = createFakeMailDataSource(inboxItems);
+
 test("shows original mail, structured analysis, draft, warning, and review action", async () => {
     const screen = await render(
         <MailReviewPanel item={readyItem} onReview={() => Promise.resolve()} />
@@ -87,7 +164,7 @@ test("shows original mail, structured analysis, draft, warning, and review actio
 test("shows the local mock inbox", async () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     const screen = await render(
-        <MailDataProvider>
+        <MailDataProvider source={fakeMailSource}>
             <Router hook={hook} searchHook={searchHook}>
                 <Home />
             </Router>
@@ -101,7 +178,7 @@ test("shows the local mock inbox", async () => {
 test("shows mail search and draft creation controls", async () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     const screen = await render(
-        <MailDataProvider>
+        <MailDataProvider source={fakeMailSource}>
             <Router hook={hook} searchHook={searchHook}>
                 <App>
                     <Home />
@@ -128,7 +205,7 @@ test("shows mail search and draft creation controls", async () => {
 test("opens the AI filter panel and resets filters", async () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     const screen = await render(
-        <MailDataProvider>
+        <MailDataProvider source={fakeMailSource}>
             <Router hook={hook} searchHook={searchHook}>
                 <App>
                     <Home />
@@ -168,7 +245,7 @@ test("omits reply actions from the mail detail view", async () => {
         path: "/mails/welcome-mail",
     });
     const screen = await render(
-        <MailDataProvider>
+        <MailDataProvider source={fakeMailSource}>
             <Router hook={hook} searchHook={searchHook}>
                 <MailReview />
             </Router>
@@ -188,7 +265,7 @@ test("omits reply actions from the mail detail view", async () => {
 test("creates a contact and renders it in the contact list", async () => {
     const { hook, searchHook } = memoryLocation({ path: "/contacts" });
     const screen = await render(
-        <MailDataProvider>
+        <MailDataProvider source={fakeMailSource}>
             <AddressBookProvider>
                 <Router hook={hook} searchHook={searchHook}>
                     <App>
@@ -231,7 +308,7 @@ test("compose page resolves contact and group into To/Bcc", async () => {
 
     const { hook, searchHook } = memoryLocation({ path: "/compose" });
     const screen = await render(
-        <MailDataProvider>
+        <MailDataProvider source={fakeMailSource}>
             <AddressBookProvider>
                 <Router hook={hook} searchHook={searchHook}>
                     <App>
@@ -266,9 +343,8 @@ test("compose page resolves contact and group into To/Bcc", async () => {
 
     await screen.getByRole("button", { name: "발송 준비" }).click();
 
-    await expect
-        .element(screen.getByText("발송 인프라가 아직 연결되지 않았습니다."))
-        .toBeVisible();
+    // P3a: no infrastructure notice shown since the app is always API-backed
+    // P1b will wire up the actual send
 
     await expect
         .element(screen.getByText("발송되었습니다"))
@@ -280,7 +356,7 @@ test("contacts page shows seed contacts without localStorage seeding", async () 
 
     const { hook, searchHook } = memoryLocation({ path: "/contacts" });
     const screen = await render(
-        <MailDataProvider>
+        <MailDataProvider source={fakeMailSource}>
             <AddressBookProvider>
                 <Router hook={hook} searchHook={searchHook}>
                     <App>

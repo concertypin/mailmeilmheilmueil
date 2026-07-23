@@ -9,7 +9,10 @@
         "url": "https://github.com/concertypin"
     },
     "scripts": {
-        "dev": "vite",
+        "dev": "pnpm dev:stack",
+        "dev:client": "vite",
+        "dev:server": "tsx server/src/main.ts",
+        "dev:stack": "concurrently --kill-others-on-fail --names client,server \"pnpm dev:client\" \"pnpm dev:server\"",
         "build": "vite build",
         "heroku-postbuild": "vite build --mode heroku",
         "start": "tsx server/src/main.ts",

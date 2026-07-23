@@ -10,8 +10,6 @@ import {
 } from "react";
 import type { MailItem } from "@/lib/mail-schema";
 import { fromMailApiItem, MailApiItemSchema } from "@/lib/mail-schema";
-import { mockMailItems } from "@/lib/mock-mail";
-import { mailMode } from "@/lib/mail-mode";
 
 export interface MailDataSource {
     readonly initialItems: readonly MailItem[] | null;
@@ -31,29 +29,6 @@ async function parseApiError(res: Response): Promise<string> {
     }
     return "Mail API request failed.";
 }
-
-const detachedSource: MailDataSource = {
-    initialItems: mockMailItems,
-    list() {
-        return Promise.resolve([...mockMailItems]);
-    },
-    get(id: string) {
-        return Promise.resolve(
-            mockMailItems.find((item) => item.id === id) ?? null
-        );
-    },
-    review(item: MailItem, promotionDraft: string) {
-        const trimmed = promotionDraft.trim();
-        return Promise.resolve({
-            ...item,
-            status: "reviewed" as const,
-            reviewedAt: item.receivedAt,
-            analysis: item.analysis
-                ? { ...item.analysis, promotionDraft: trimmed }
-                : item.analysis,
-        });
-    },
-};
 
 export function createAttachedMailDataSource(
     fetchImpl: typeof fetch = fetch
@@ -117,11 +92,7 @@ export function MailDataProvider({
     source?: MailDataSource;
 }) {
     const resolvedSource = useMemo(
-        () =>
-            source ??
-            (mailMode === "detach"
-                ? detachedSource
-                : createAttachedMailDataSource()),
+        () => source ?? createAttachedMailDataSource(),
         [source]
     );
 
@@ -151,6 +122,7 @@ export function MailDataProvider({
                             (item) => prevMap.get(item.id) ?? item
                         );
                     });
+                    setIsLoading(false);
                 }
             })
             .catch((err: unknown) => {

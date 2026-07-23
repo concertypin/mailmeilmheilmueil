@@ -12,10 +12,7 @@ import { spaCopyPlugin } from "./scripts/spaCopyPlugin";
 // false → @vitejs/plugin-react uses the installed react, react-dom packages
 const usePreact = true;
 
-// Mail data operating mode.
-// "detach" → mock-only UI, no API calls.
-// "attach" → Hono/Firestore API-backed mode.
-const mailMode: "attach" | "detach" = "detach";
+// Mail data: always API-backed via Vite dev proxy to Hono.
 
 type Config = Required<UserConfig>;
 const resolveAlias: Config["resolve"] = {
@@ -86,14 +83,16 @@ export default defineConfig(({ mode }) => ({
         outDir: "dist",
         sourcemap: true,
     },
-    clearScreen: false,
-    define: {
-        "import.meta.env.VITE_MAIL_MODE": JSON.stringify(mailMode),
-    },
     plugins: [frameworkPlugins, spaCopyPlugin(["/"])],
     resolve: resolveAlias,
     server: {
         open: "index.html",
+        proxy: {
+            "/api": {
+                changeOrigin: true,
+                target: `http://127.0.0.1:${process.env.API_PORT ?? process.env.PORT ?? "8787"}`,
+            },
+        },
     },
     test: testConfig,
 }));
