@@ -375,3 +375,43 @@ test("contacts page shows seed contacts without localStorage seeding", async () 
         .element(screen.getByRole("cell", { name: "학생지원팀" }).first())
         .toBeVisible();
 });
+
+test("login modal: terms gate and form controls", async () => {
+    const { hook, searchHook } = memoryLocation({ path: "/" });
+    const screen = await render(
+        <Router hook={hook} searchHook={searchHook}>
+            <Landing />
+        </Router>
+    );
+
+    // Open the login modal
+    await screen.getByRole("button", { name: "로그인", exact: true }).click();
+    await expect
+        .element(screen.getByRole("heading", { name: "팀 메일함에 로그인" }))
+        .toBeVisible();
+    // Submit button is disabled when terms not agreed
+    // The submit button is the one inside the dialog, type="submit"
+    const dialog = screen.getByRole("dialog", { name: "팀 메일함에 로그인" });
+    const submitBtn = dialog.getByRole("button", {
+        name: "로그인",
+        exact: true,
+    });
+    await expect.element(submitBtn).toBeDisabled();
+
+    // Agree to terms, add credentials - button becomes enabled
+    await screen
+        .getByRole("checkbox", { name: "서비스 이용약관 동의" })
+        .click();
+    const emailInput = screen.getByPlaceholder("team@example.com");
+    await emailInput.fill("user@test.com");
+    const passwordInput = screen.getByPlaceholder("••••••••");
+    await passwordInput.fill("password123");
+
+    await expect.element(submitBtn).toBeEnabled();
+
+    // Close button works
+    await screen.getByRole("button", { name: "로그인 창 닫기" }).click();
+    await expect
+        .element(screen.getByRole("button", { name: "로그인 창 닫기" }))
+        .not.toBeInTheDocument();
+});
