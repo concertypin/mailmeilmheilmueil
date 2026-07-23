@@ -60,7 +60,8 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 if (error instanceof ImapCredentialError) {
                     return context.json(
                         { error: "IMAP credentials are invalid" },
-                        401
+                        401,
+                        { "WWW-Authenticate": 'Basic realm="IMAP"' }
                     );
                 }
                 if (error instanceof ImapUnavailableError) {
