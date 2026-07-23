@@ -404,7 +404,7 @@ export default function Landing() {
                                                 )
                                             }
                                             placeholder="team@example.com"
-                                            type="email"
+                                            type="text"
                                             value={account}
                                         />
                                     </label>

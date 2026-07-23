@@ -27,21 +27,23 @@ export function encodeImapBasicAuthorization(
 }
 
 export function loadImapBasicCredentials(
-    storage: Storage = window.sessionStorage
+    storage?: Storage
 ): ImapCredentials | null {
     try {
-        const raw = storage.getItem(IMAP_BASIC_STORAGE_KEY);
+        const target = storage ?? window.sessionStorage;
+        const raw = target.getItem(IMAP_BASIC_STORAGE_KEY);
         if (!raw) return null;
         const parsed: unknown = JSON.parse(raw);
         const result = StoredCredentialsSchema.safeParse(parsed);
         if (!result.success) {
-            storage.removeItem(IMAP_BASIC_STORAGE_KEY);
+            target.removeItem(IMAP_BASIC_STORAGE_KEY);
             return null;
         }
         return result.data;
     } catch {
         try {
-            storage.removeItem(IMAP_BASIC_STORAGE_KEY);
+            const target = storage ?? window.sessionStorage;
+            target.removeItem(IMAP_BASIC_STORAGE_KEY);
         } catch {
             // Storage may be unavailable
         }
@@ -51,16 +53,20 @@ export function loadImapBasicCredentials(
 
 export function saveImapBasicCredentials(
     credentials: ImapCredentials,
-    storage: Storage = window.sessionStorage
-): void {
-    storage.setItem(IMAP_BASIC_STORAGE_KEY, JSON.stringify(credentials));
-}
-
-export function clearImapBasicCredentials(
-    storage: Storage = window.sessionStorage
+    storage?: Storage
 ): void {
     try {
-        storage.removeItem(IMAP_BASIC_STORAGE_KEY);
+        const target = storage ?? window.sessionStorage;
+        target.setItem(IMAP_BASIC_STORAGE_KEY, JSON.stringify(credentials));
+    } catch {
+        // Storage may be unavailable
+    }
+}
+
+export function clearImapBasicCredentials(storage?: Storage): void {
+    try {
+        const target = storage ?? window.sessionStorage;
+        target.removeItem(IMAP_BASIC_STORAGE_KEY);
     } catch {
         // Storage may be unavailable
     }
