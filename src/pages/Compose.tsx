@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AddressBookIcon,
     EnvelopeSimpleIcon,
@@ -23,6 +23,14 @@ import {
     throwIfUnauthorized,
 } from "@/lib/imap-basic";
 
+const DRAFT_STORAGE_KEY = "mailmeilmheilmueil.compose-draft.v1";
+
+interface ComposeDraft {
+    selections: RecipientSelection[];
+    subject: string;
+    body: string;
+}
+
 export default function Compose() {
     const { book, storageWarning } = useAddressBook();
     const { items } = useMailData();
@@ -37,6 +45,61 @@ export default function Compose() {
     const [isSending, setIsSending] = useState(false);
     const [sendError, setSendError] = useState<string | null>(null);
     const [sendSuccess, setSendSuccess] = useState(false);
+    const [draftSaved, setDraftSaved] = useState(false);
+
+    // ── Load draft on mount ──────────────────────────────────────
+    useEffect(() => {
+        try {
+            const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+            if (!raw) return;
+            const parsed: unknown = JSON.parse(raw);
+            if (typeof parsed !== "object" || parsed === null) return;
+            const draft = parsed as ComposeDraft;
+            if (Array.isArray(draft.selections)) {
+                setSelections(draft.selections);
+            }
+            if (typeof draft.subject === "string") {
+                setSubject(draft.subject);
+            }
+            if (typeof draft.body === "string") {
+                setBody(draft.body);
+            }
+        } catch {
+            /* ignore corrupt draft */
+        }
+    }, []);
+
+    // ── Auto-save draft ──────────────────────────────────────────
+    const draftTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+        undefined
+    );
+    const saveDraft = useCallback(() => {
+        const draft: ComposeDraft = { selections, subject, body };
+        try {
+            sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+            setDraftSaved(true);
+        } catch {
+            /* storage may be full */
+        }
+    }, [selections, subject, body]);
+
+    useEffect(() => {
+        clearTimeout(draftTimeoutRef.current);
+        draftTimeoutRef.current = setTimeout(() => {
+            saveDraft();
+        }, 800);
+        return () => {
+            clearTimeout(draftTimeoutRef.current);
+        };
+    }, [saveDraft]);
+
+    const clearDraft = useCallback(() => {
+        try {
+            sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+        } catch {
+            /* ignore */
+        }
+    }, []);
 
     const resolved: ResolvedRecipients = useMemo(
         () => resolveRecipients(book, selections),
@@ -66,6 +129,7 @@ export default function Compose() {
         setBody("");
         setSendSuccess(false);
         setSendError(null);
+        clearDraft();
     };
 
     const handleSend = async () => {
@@ -109,6 +173,7 @@ export default function Compose() {
             }
 
             setSendSuccess(true);
+            clearDraft();
             setTimeout(() => {
                 clearForm();
                 navigate("/inbox");
@@ -500,6 +565,11 @@ export default function Compose() {
                                     )}
                                 </button>
                             </div>
+                            {draftSaved && !sendSuccess && !isSending ? (
+                                <p className="mt-2 text-xs text-base-content/50">
+                                    임시 저장됨
+                                </p>
+                            ) : null}
                         </div>
                     </div>
                 </main>
