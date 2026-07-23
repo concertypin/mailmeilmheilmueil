@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
     analysisConfigFromEnv,
     type AnalysisEnvironment,
-} from "../../server/src/analysis";
-import { createWebApp } from "../../server/src/web";
-import { firebaseCredentialFromEnv } from "../../server/src/firebase";
+} from "@server/analysis";
+import { createWebApp } from "@server/web";
+import { firebaseCredentialFromEnv } from "@server/firebase";
 
 const temporaryDirectories: string[] = [];
 
@@ -56,11 +56,11 @@ describe("Heroku web app", () => {
 });
 
 describe("Firebase service-account environment parsing", () => {
-    it("uses ADC when the environment value is absent", () => {
+    it.concurrent("uses ADC when the environment value is absent", () => {
         expect(firebaseCredentialFromEnv(undefined)).toBeUndefined();
     });
 
-    it("rejects invalid JSON without exposing the value", () => {
+    it.concurrent("rejects invalid JSON without exposing the value", () => {
         expect(() => firebaseCredentialFromEnv("not-json")).toThrow(
             "FIREBASE_SERVICE_ACCOUNT_JSON must contain valid JSON"
         );
@@ -68,7 +68,7 @@ describe("Firebase service-account environment parsing", () => {
 });
 
 describe("AI analysis provider configuration", () => {
-    it("uses explicit OpenAI-compatible settings", () => {
+    it.concurrent("uses explicit OpenAI-compatible settings", () => {
         const environment = {
             AI_API_KEY: "ai-key",
             AI_BASE_URL: "https://gateway.example/v1",
@@ -84,19 +84,22 @@ describe("AI analysis provider configuration", () => {
         });
     });
 
-    it("selects OpenAI automatically when an API key is present", () => {
-        const environment = {
-            OPENAI_API_KEY: "openai-key",
-        } satisfies AnalysisEnvironment;
+    it.concurrent(
+        "selects OpenAI automatically when an API key is present",
+        () => {
+            const environment = {
+                OPENAI_API_KEY: "openai-key",
+            } satisfies AnalysisEnvironment;
 
-        expect(analysisConfigFromEnv(environment)).toMatchObject({
-            apiKey: "openai-key",
-            model: "gpt-5.4-mini",
-            provider: "openai",
-        });
-    });
+            expect(analysisConfigFromEnv(environment)).toMatchObject({
+                apiKey: "openai-key",
+                model: "gpt-5.4-mini",
+                provider: "openai",
+            });
+        }
+    );
 
-    it("keeps Codex as the default without an API key", () => {
+    it.concurrent("keeps Codex as the default without an API key", () => {
         expect(analysisConfigFromEnv({})).toEqual({
             apiKey: undefined,
             baseUrl: undefined,
@@ -105,7 +108,7 @@ describe("AI analysis provider configuration", () => {
         });
     });
 
-    it("rejects an unknown provider", () => {
+    it.concurrent("rejects an unknown provider", () => {
         expect(() => analysisConfigFromEnv({ AI_PROVIDER: "unknown" })).toThrow(
             "AI_PROVIDER must be either codex or openai"
         );

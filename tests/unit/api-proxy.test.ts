@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createAttachedMailDataSource } from "../../src/lib/mail-data";
 
 describe("createAttachedMailDataSource", () => {
-    it("requests /api/mails and parses the response", async () => {
+    it.concurrent("requests /api/mails and parses the response", async () => {
         const apiResponse = new Response(
             JSON.stringify([
                 {
@@ -43,18 +43,21 @@ describe("createAttachedMailDataSource", () => {
         expect(first.senderName).toBe("테스터");
     });
 
-    it("get() requests /api/mails/:id and returns null on 404", async () => {
-        const notFoundResponse = new Response(null, { status: 404 });
-        const fetchFn = vi
-            .fn<typeof fetch>()
-            .mockResolvedValue(notFoundResponse);
-        const source = createAttachedMailDataSource(fetchFn);
-        const result = await source.get("unknown-id");
-        expect(fetchFn).toHaveBeenCalledWith("/api/mails/unknown-id");
-        expect(result).toBeNull();
-    });
+    it.concurrent(
+        "get() requests /api/mails/:id and returns null on 404",
+        async () => {
+            const notFoundResponse = new Response(null, { status: 404 });
+            const fetchFn = vi
+                .fn<typeof fetch>()
+                .mockResolvedValue(notFoundResponse);
+            const source = createAttachedMailDataSource(fetchFn);
+            const result = await source.get("unknown-id");
+            expect(fetchFn).toHaveBeenCalledWith("/api/mails/unknown-id");
+            expect(result).toBeNull();
+        }
+    );
 
-    it("get() returns a parsed item on 200", async () => {
+    it.concurrent("get() returns a parsed item on 200", async () => {
         const apiResponse = new Response(
             JSON.stringify({
                 id: "existing-1",

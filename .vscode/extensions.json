@@ -3,6 +3,7 @@
         "oxc.oxc-vscode",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "vitest.explorer"
+        "vitest.explorer",
+        "typescriptteam.native-preview"
     ]
 }

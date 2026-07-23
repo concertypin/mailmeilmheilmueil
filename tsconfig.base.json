@@ -32,7 +32,9 @@
         "moduleResolution": "bundler" /* Specify how TypeScript looks up a file from a given module specifier. */,
         // "baseUrl": "./",                                  /* Specify the base directory to resolve non-relative module names. */
         "paths": {
-            "@/*": ["./src/*"]
+            "@/*": ["./src/*"],
+            "@server/*": ["./server/src/*"],
+            "@test/*": ["./tests/*"]
         } /* Specify a set of entries that re-map imports to additional lookup locations. */,
         // "rootDirs": [],                                   /* Allow multiple folders to be treated as one when resolving modules. */
         // "typeRoots": [],                                  /* Specify multiple folders that act like './node_modules/@types'. */
@@ -57,7 +59,7 @@
         /* Emit */
         // "declaration": true,                              /* Generate .d.ts files from TypeScript and JavaScript files in your project. */
         // "declarationMap": true,                           /* Create sourcemaps for d.ts files. */
-        // Since referenced tsconfig can't set noEmit, emit d.ts(not js to making conflict).
+        // Since referenced tsconfig can't reactset noEmit, emit d.ts(not js to making conflict).
         "emitDeclarationOnly": true /* Only output d.ts files and not JavaScript files. */,
         // "sourceMap": true,                                /* Create source map files for emitted JavaScript files. */
         // "inlineSourceMap": true,                          /* Include sourcemap files inside the emitted JavaScript. */

@@ -42,7 +42,7 @@ const book = (r: ContactBookMutationResult): ContactBook =>
 // ── addContact ────────────────────────────────────────────────────────
 
 describe("addContact", () => {
-    test("adds a valid contact", () => {
+    test.concurrent("adds a valid contact", () => {
         const r = addContact(seedBook, {
             alias: "Diana",
             email: "diana@example.com",
@@ -54,22 +54,22 @@ describe("addContact", () => {
         );
     });
 
-    test("rejects blank alias", () => {
+    test.concurrent("rejects blank alias", () => {
         const r = addContact(seedBook, { alias: "  ", email: "x@y" });
         expect(ok(r)).toBe(false);
     });
 
-    test("rejects blank email", () => {
+    test.concurrent("rejects blank email", () => {
         const r = addContact(seedBook, { alias: "X", email: "" });
         expect(ok(r)).toBe(false);
     });
 
-    test("rejects malformed email", () => {
+    test.concurrent("rejects malformed email", () => {
         const r = addContact(seedBook, { alias: "X", email: "not-an-email" });
         expect(ok(r)).toBe(false);
     });
 
-    test("rejects duplicate email (case insensitive)", () => {
+    test.concurrent("rejects duplicate email (case insensitive)", () => {
         const r = addContact(seedBook, {
             alias: "Alice2",
             email: "ALICE@example.com",
@@ -77,7 +77,7 @@ describe("addContact", () => {
         expect(ok(r)).toBe(false);
     });
 
-    test("rejects duplicate alias (case insensitive)", () => {
+    test.concurrent("rejects duplicate alias (case insensitive)", () => {
         const r = addContact(seedBook, {
             alias: "alice",
             email: "new@example.com",
@@ -85,7 +85,7 @@ describe("addContact", () => {
         expect(ok(r)).toBe(false);
     });
 
-    test("trims alias and email", () => {
+    test.concurrent("trims alias and email", () => {
         const r = addContact(seedBook, {
             alias: "  Diana  ",
             email: "  DIANA@EXAMPLE.COM  ",
@@ -100,7 +100,7 @@ describe("addContact", () => {
 // ── updateContact ─────────────────────────────────────────────────────
 
 describe("updateContact", () => {
-    test("updates existing contact", () => {
+    test.concurrent("updates existing contact", () => {
         const r = updateContact(seedBook, "c1", {
             alias: "Alice A.",
             email: "alice.a@example.com",
@@ -112,7 +112,7 @@ describe("updateContact", () => {
         expect(c.email).toBe("alice.a@example.com");
     });
 
-    test("rejects unknown id", () => {
+    test.concurrent("rejects unknown id", () => {
         const r = updateContact(seedBook, "ghost", {
             alias: "X",
             email: "x@y",
@@ -124,17 +124,20 @@ describe("updateContact", () => {
 // ── removeContact (cascade) ───────────────────────────────────────────
 
 describe("removeContact cascade", () => {
-    test("removes contact from groups and deletes empty groups", () => {
-        const result = removeContact(seedBook, "c1");
-        expect(result.contacts).toHaveLength(2);
-        expect(result.contacts.find((c) => c.id === "c1")).toBeUndefined();
-        expect(result.groups).toHaveLength(1);
-        expect(result.groups.find((g) => g.id === "g1")?.memberIds).toEqual([
-            "c2",
-        ]);
-    });
+    test.concurrent(
+        "removes contact from groups and deletes empty groups",
+        () => {
+            const result = removeContact(seedBook, "c1");
+            expect(result.contacts).toHaveLength(2);
+            expect(result.contacts.find((c) => c.id === "c1")).toBeUndefined();
+            expect(result.groups).toHaveLength(1);
+            expect(result.groups.find((g) => g.id === "g1")?.memberIds).toEqual(
+                ["c2"]
+            );
+        }
+    );
 
-    test("deletes a group left empty after removal", () => {
+    test.concurrent("deletes a group left empty after removal", () => {
         const book2: ContactBook = {
             contacts: [{ id: "c1", alias: "X", email: "x@y" }],
             groups: [{ id: "g1", name: "Solo", memberIds: ["c1"] }],
@@ -148,7 +151,7 @@ describe("removeContact cascade", () => {
 // ── addGroup ──────────────────────────────────────────────────────────
 
 describe("addGroup", () => {
-    test("adds a valid group", () => {
+    test.concurrent("adds a valid group", () => {
         const r = addGroup(seedBook, {
             name: "Designers",
             memberIds: ["c1", "c3"],
@@ -157,7 +160,7 @@ describe("addGroup", () => {
         expect(book(r).groups).toHaveLength(2);
     });
 
-    test("rejects blank name", () => {
+    test.concurrent("rejects blank name", () => {
         const r = addGroup(seedBook, {
             name: "  ",
             memberIds: ["c1"],
@@ -165,7 +168,7 @@ describe("addGroup", () => {
         expect(ok(r)).toBe(false);
     });
 
-    test("rejects duplicate group name", () => {
+    test.concurrent("rejects duplicate group name", () => {
         const r = addGroup(seedBook, {
             name: "devs",
             memberIds: ["c3"],
@@ -173,7 +176,7 @@ describe("addGroup", () => {
         expect(ok(r)).toBe(false);
     });
 
-    test("rejects unknown member ids", () => {
+    test.concurrent("rejects unknown member ids", () => {
         const r = addGroup(seedBook, {
             name: "Ghosts",
             memberIds: ["ghost-id"],
@@ -181,7 +184,7 @@ describe("addGroup", () => {
         expect(ok(r)).toBe(false);
     });
 
-    test("rejects empty member list", () => {
+    test.concurrent("rejects empty member list", () => {
         const r = addGroup(seedBook, {
             name: "Empty",
             memberIds: [],
@@ -193,7 +196,7 @@ describe("addGroup", () => {
 // ── updateGroup ───────────────────────────────────────────────────────
 
 describe("updateGroup", () => {
-    test("updates existing group", () => {
+    test.concurrent("updates existing group", () => {
         const r = updateGroup(seedBook, "g1", {
             name: "Engineers",
             memberIds: ["c1", "c2", "c3"],
@@ -205,7 +208,7 @@ describe("updateGroup", () => {
         expect(g.memberIds).toHaveLength(3);
     });
 
-    test("rejects duplicate name on update", () => {
+    test.concurrent("rejects duplicate name on update", () => {
         const book2: ContactBook = {
             contacts: [
                 { id: "c1", alias: "A", email: "a@x" },
@@ -227,7 +230,7 @@ describe("updateGroup", () => {
 // ── removeGroup ───────────────────────────────────────────────────────
 
 describe("removeGroup", () => {
-    test("removes a group without affecting contacts", () => {
+    test.concurrent("removes a group without affecting contacts", () => {
         const result = removeGroup(seedBook, "g1");
         expect(result.groups).toHaveLength(0);
         expect(result.contacts).toHaveLength(3);
@@ -237,7 +240,7 @@ describe("removeGroup", () => {
 // ── resolveRecipients ─────────────────────────────────────────────────
 
 describe("resolveRecipients", () => {
-    test("direct contact appears in To", () => {
+    test.concurrent("direct contact appears in To", () => {
         const r = resolveRecipients(seedBook, [{ kind: "contact", id: "c1" }]);
         expect(r.to).toHaveLength(1);
         assert(r.to[0]);
@@ -245,26 +248,29 @@ describe("resolveRecipients", () => {
         expect(r.bcc).toHaveLength(0);
     });
 
-    test("group expands to Bcc", () => {
+    test.concurrent("group expands to Bcc", () => {
         const r = resolveRecipients(seedBook, [{ kind: "group", id: "g1" }]);
         expect(r.to).toHaveLength(0);
         expect(r.bcc).toHaveLength(2);
     });
 
-    test("direct contact + group containing same contact deduplicates", () => {
-        const r = resolveRecipients(seedBook, [
-            { kind: "contact", id: "c1" },
-            { kind: "group", id: "g1" },
-        ]);
-        expect(r.to).toHaveLength(1);
-        assert(r.to[0]);
-        expect(r.to[0].id).toBe("c1");
-        expect(r.bcc).toHaveLength(1);
-        assert(r.bcc[0]);
-        expect(r.bcc[0].id).toBe("c2");
-    });
+    test.concurrent(
+        "direct contact + group containing same contact deduplicates",
+        () => {
+            const r = resolveRecipients(seedBook, [
+                { kind: "contact", id: "c1" },
+                { kind: "group", id: "g1" },
+            ]);
+            expect(r.to).toHaveLength(1);
+            assert(r.to[0]);
+            expect(r.to[0].id).toBe("c1");
+            expect(r.bcc).toHaveLength(1);
+            assert(r.bcc[0]);
+            expect(r.bcc[0].id).toBe("c2");
+        }
+    );
 
-    test("deleted selection id is silently ignored", () => {
+    test.concurrent("deleted selection id is silently ignored", () => {
         const r = resolveRecipients(seedBook, [
             { kind: "contact", id: "ghost" },
             { kind: "group", id: "ghost-group" },
@@ -273,7 +279,7 @@ describe("resolveRecipients", () => {
         expect(r.bcc).toHaveLength(0);
     });
 
-    test("preserves selection order with deduplication", () => {
+    test.concurrent("preserves selection order with deduplication", () => {
         const r = resolveRecipients(seedBook, [
             { kind: "group", id: "g1" },
             { kind: "contact", id: "c3" },
@@ -282,7 +288,7 @@ describe("resolveRecipients", () => {
         expect(r.to.map((c) => c.id)).toEqual(["c3"]);
     });
 
-    test("same address in two groups deduplicates", () => {
+    test.concurrent("same address in two groups deduplicates", () => {
         const book2: ContactBook = {
             contacts: [
                 { id: "c1", alias: "X", email: "x@y" },
@@ -304,13 +310,13 @@ describe("resolveRecipients", () => {
 // ── sanitizeContactBook ───────────────────────────────────────────────
 
 describe("sanitizeContactBook", () => {
-    test("accepts valid book", () => {
+    test.concurrent("accepts valid book", () => {
         const r = sanitizeContactBook(seedBook);
         assert(r.ok);
         expect(r.book.contacts).toHaveLength(3);
     });
 
-    test("rejects duplicate emails", () => {
+    test.concurrent("rejects duplicate emails", () => {
         const r = sanitizeContactBook({
             contacts: [
                 { id: "a", alias: "A", email: "dup@example.com" },
@@ -321,7 +327,7 @@ describe("sanitizeContactBook", () => {
         expect(r.ok).toBe(false);
     });
 
-    test("rejects duplicate aliases", () => {
+    test.concurrent("rejects duplicate aliases", () => {
         const r = sanitizeContactBook({
             contacts: [
                 { id: "a", alias: "Same", email: "a@x" },
@@ -332,7 +338,7 @@ describe("sanitizeContactBook", () => {
         expect(r.ok).toBe(false);
     });
 
-    test("rejects dangling memberIds", () => {
+    test.concurrent("rejects dangling memberIds", () => {
         const r = sanitizeContactBook({
             contacts: [{ id: "c1", alias: "Only", email: "o@x" }],
             groups: [{ id: "g1", name: "G", memberIds: ["c1", "ghost"] }],
@@ -340,7 +346,7 @@ describe("sanitizeContactBook", () => {
         expect(r.ok).toBe(false);
     });
 
-    test("rejects empty groups", () => {
+    test.concurrent("rejects empty groups", () => {
         const r = sanitizeContactBook({
             contacts: [{ id: "c1", alias: "A", email: "a@x" }],
             groups: [{ id: "g1", name: "Empty", memberIds: [] }],
@@ -348,7 +354,7 @@ describe("sanitizeContactBook", () => {
         expect(r.ok).toBe(false);
     });
 
-    test("rejects duplicate group names", () => {
+    test.concurrent("rejects duplicate group names", () => {
         const r = sanitizeContactBook({
             contacts: [
                 { id: "c1", alias: "A", email: "a@x" },
@@ -362,12 +368,12 @@ describe("sanitizeContactBook", () => {
         expect(r.ok).toBe(false);
     });
 
-    test("rejects completely malformed input", () => {
+    test.concurrent("rejects completely malformed input", () => {
         const r = sanitizeContactBook({ not: "a book" });
         expect(r.ok).toBe(false);
     });
 
-    test("rejects null input", () => {
+    test.concurrent("rejects null input", () => {
         const r = sanitizeContactBook(null);
         expect(r.ok).toBe(false);
     });
