@@ -6,9 +6,22 @@ import {
 } from "../../src/lib/mail-schema";
 import { firestoreRepository, type MailRepository } from "./repository";
 import { parseImapBasicAuthorization } from "./basic-auth";
+import {
+    syncInbox,
+    ImapCredentialError,
+    ImapUnavailableError,
+    type ImapCredentials,
+    type ImapSyncResult,
+} from "./imap";
+
+export type SyncFn = (
+    credentials: ImapCredentials,
+    repository: MailRepository
+) => Promise<ImapSyncResult>;
 
 export type RouteDependencies = {
     repository?: MailRepository;
+    sync?: SyncFn;
 };
 
 export function createRoutes(dependencies: RouteDependencies = {}) {
@@ -28,7 +41,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
             return context.body(null, 204);
         })
-        .post("/api/sync", (context) => {
+        .post("/api/sync", async (context) => {
             const credentials = parseImapBasicAuthorization(
                 context.req.header("authorization")
             );
@@ -39,12 +52,28 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                     { "WWW-Authenticate": 'Basic realm="IMAP"' }
                 );
             }
-            // P0c will wire up the actual syncInbox call
-            return context.json({
-                imported: 0,
-                duplicates: 0,
-                rejected: 0,
-            });
+            try {
+                const sync = dependencies.sync ?? syncInbox;
+                const result = await sync(credentials, repository);
+                return context.json(result);
+            } catch (error: unknown) {
+                if (error instanceof ImapCredentialError) {
+                    return context.json(
+                        { error: "IMAP credentials are invalid" },
+                        401
+                    );
+                }
+                if (error instanceof ImapUnavailableError) {
+                    return context.json(
+                        { error: "IMAP server is unavailable" },
+                        502
+                    );
+                }
+                return context.json(
+                    { error: "IMAP synchronization failed" },
+                    500
+                );
+            }
         })
         .get("/api/mails", async (context) => {
             const items = await repository.list();
