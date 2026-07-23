@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { Timestamp } from "firebase-admin/firestore";
 import {
     ComposeRequestSchema,
+    FlagMailRequestSchema,
     ReviewMailRequestSchema,
     toMailApiItem,
 } from "../../src/lib/mail-schema";
@@ -135,6 +136,38 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                     ...item.analysis,
                     promotionDraft: parsed.data.promotionDraft,
                 },
+            });
+
+            const updated = await repository.get(id);
+            if (!updated) {
+                return context.json({ error: "Mail not found" }, 404);
+            }
+            return context.json(toMailApiItem(updated));
+        })
+        .post("/api/mails/:id/flag", async (context) => {
+            const id = context.req.param("id");
+            const item = await repository.get(id);
+            if (!item) {
+                return context.json({ error: "Mail not found" }, 404);
+            }
+
+            let body: unknown;
+            try {
+                body = await context.req.json();
+            } catch {
+                return context.json({ error: "Invalid JSON body" }, 400);
+            }
+
+            const parsed = FlagMailRequestSchema.safeParse(body);
+            if (!parsed.success) {
+                return context.json(
+                    { error: "important flag is required" },
+                    400
+                );
+            }
+
+            await repository.update(id, {
+                isImportant: parsed.data.important,
             });
 
             const updated = await repository.get(id);

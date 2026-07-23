@@ -70,6 +70,7 @@ export const MailItemSchema = z.object({
     reviewedAt: timestampSchema.nullable(),
     failureMessage: z.string().nullable(),
     analysis: MailAnalysisSchema.nullable(),
+    isImportant: z.boolean().optional(),
 });
 
 export type MailItem = z.infer<typeof MailItemSchema>;
@@ -131,3 +132,9 @@ export const ComposeRequestSchema = z
     });
 
 export type ComposeRequest = z.infer<typeof ComposeRequestSchema>;
+
+export const FlagMailRequestSchema = z.object({
+    important: z.boolean(),
+});
+
+export type FlagMailRequest = z.infer<typeof FlagMailRequestSchema>;

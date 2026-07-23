@@ -10,7 +10,12 @@ import {
 export type MailUpdate = Partial<
     Pick<
         MailItem,
-        "status" | "processedAt" | "reviewedAt" | "failureMessage" | "analysis"
+        | "status"
+        | "processedAt"
+        | "reviewedAt"
+        | "failureMessage"
+        | "analysis"
+        | "isImportant"
     >
 >;
 
