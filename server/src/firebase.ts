@@ -45,7 +45,9 @@ export function firebaseCredentialFromEnv(
         if (!result.success) throw new Error("Invalid service account");
         return result.data;
     } catch {
-        throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON must contain valid JSON");
+        throw new Error(
+            "FIREBASE_SERVICE_ACCOUNT_JSON must contain valid JSON"
+        );
     }
 }
 

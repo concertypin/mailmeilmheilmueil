@@ -24,7 +24,13 @@ export interface FirestoreTimestamp {
 }
 
 const timestampSchema = z.custom<FirestoreTimestamp>(
-    (value) => Boolean(value && typeof value === "object" && "toDate" in value && "toMillis" in value),
+    (value) =>
+        Boolean(
+            value &&
+            typeof value === "object" &&
+            "toDate" in value &&
+            "toMillis" in value
+        ),
     "Expected a Firestore timestamp"
 );
 
@@ -64,3 +70,47 @@ export const MailItemSchema = z.object({
 });
 
 export type MailItem = z.infer<typeof MailItemSchema>;
+
+const mailApiTimestampSchema = z.iso.datetime({ offset: true });
+
+export const MailApiItemSchema = MailItemSchema.extend({
+    receivedAt: mailApiTimestampSchema,
+    processedAt: mailApiTimestampSchema.nullable(),
+    reviewedAt: mailApiTimestampSchema.nullable(),
+});
+
+export type MailApiItem = z.infer<typeof MailApiItemSchema>;
+
+function timestampFromDate(date: Date): FirestoreTimestamp {
+    return {
+        toDate: () => date,
+        toMillis: () => date.getTime(),
+    };
+}
+
+export function toMailApiItem(item: MailItem): MailApiItem {
+    return MailApiItemSchema.parse({
+        ...item,
+        receivedAt: item.receivedAt.toDate().toISOString(),
+        processedAt: item.processedAt?.toDate().toISOString() ?? null,
+        reviewedAt: item.reviewedAt?.toDate().toISOString() ?? null,
+    });
+}
+
+export function fromMailApiItem(item: MailApiItem): MailItem {
+    const parsed = MailApiItemSchema.parse(item);
+    return MailItemSchema.parse({
+        ...parsed,
+        receivedAt: timestampFromDate(new Date(parsed.receivedAt)),
+        processedAt: parsed.processedAt
+            ? timestampFromDate(new Date(parsed.processedAt))
+            : null,
+        reviewedAt: parsed.reviewedAt
+            ? timestampFromDate(new Date(parsed.reviewedAt))
+            : null,
+    });
+}
+
+export const ReviewMailRequestSchema = z.object({
+    promotionDraft: z.string().trim().min(1),
+});

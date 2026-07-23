@@ -1,6 +1,10 @@
 import { Timestamp } from "firebase-admin/firestore";
 import { describe, expect, it, vi } from "vitest";
-import { MailAnalysisSchema, type MailItem } from "../../src/lib/mail-schema";
+import {
+    MailAnalysisSchema,
+    MailApiItemSchema,
+    type MailItem,
+} from "../../src/lib/mail-schema";
 import { parseMailSource } from "../../server/src/mail-parser";
 import {
     AI_FAILURE_MESSAGE,
@@ -79,6 +83,9 @@ class FakeRepository implements MailRepository {
         this.item = { ...this.item, ...update };
         return Promise.resolve();
     }
+    list(): Promise<MailItem[]> {
+        return Promise.resolve([this.item]);
+    }
 }
 
 class SyncRepository implements MailRepository {
@@ -123,6 +130,13 @@ class SyncRepository implements MailRepository {
             this.items.set(id, { ...item, ...update });
         }
         return Promise.resolve();
+    }
+    list(): Promise<MailItem[]> {
+        return Promise.resolve(
+            Array.from(this.items.values()).sort(
+                (a, b) => b.receivedAt.toMillis() - a.receivedAt.toMillis()
+            )
+        );
     }
 }
 
@@ -630,13 +644,134 @@ describe("review routes", () => {
         const ready = new FakeRepository(sampleItem("ready"));
         const response = await createRoutes({ repository: ready }).request(
             "/api/mails/mail-1/review",
-            { method: "POST" }
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    promotionDraft: "  Trimmed draft  ",
+                }),
+                headers: { "Content-Type": "application/json" },
+            }
         );
         expect(response.status).toBe(200);
-        expect(ready.item.status).toBe("reviewed");
+        expect(ready.item.analysis?.promotionDraft).toBe("Trimmed draft");
+        const body = MailApiItemSchema.parse(await response.json());
+        expect(body.id).toBe("mail-1");
+        expect(body.status).toBe("reviewed");
+        expect(typeof body.reviewedAt).toBe("string");
+    });
+
+    it("rejects malformed or empty review body with 400", async () => {
+        const ready = new FakeRepository(sampleItem("ready"));
+
+        const malformed = await createRoutes({ repository: ready }).request(
+            "/api/mails/mail-1/review",
+            {
+                method: "POST",
+                body: "not json",
+                headers: { "Content-Type": "application/json" },
+            }
+        );
+        expect(malformed.status).toBe(400);
+        expect(await malformed.json()).toMatchObject({
+            error: "promotionDraft must be a non-empty string",
+        });
+
+        const missing = await createRoutes({ repository: ready }).request(
+            "/api/mails/mail-1/review",
+            {
+                method: "POST",
+                body: JSON.stringify({}),
+                headers: { "Content-Type": "application/json" },
+            }
+        );
+        expect(missing.status).toBe(400);
+
+        const blank = await createRoutes({ repository: ready }).request(
+            "/api/mails/mail-1/review",
+            {
+                method: "POST",
+                body: JSON.stringify({ promotionDraft: "   " }),
+                headers: { "Content-Type": "application/json" },
+            }
+        );
+        expect(blank.status).toBe(400);
+    });
+
+    it("rejects ready item without analysis with 409", async () => {
+        const corrupt = new FakeRepository();
+        corrupt.item = {
+            ...corrupt.item,
+            status: "ready" as const,
+            analysis: null,
+        };
+        const response = await createRoutes({ repository: corrupt }).request(
+            "/api/mails/mail-1/review",
+            {
+                method: "POST",
+                body: JSON.stringify({ promotionDraft: "Valid draft" }),
+                headers: { "Content-Type": "application/json" },
+            }
+        );
+        expect(response.status).toBe(409);
         expect(await response.json()).toMatchObject({
+            error: "Mail has no analysis available for review",
+        });
+    });
+});
+
+describe("mail list and get routes", () => {
+    it("GET /api/mails returns items in descending receivedAt order", async () => {
+        const repository = new SyncRepository();
+        const earlier: MailItem = {
+            ...sampleItem("queued"),
+            id: "earlier",
+            receivedAt: Timestamp.fromMillis(1000),
+        };
+        const later: MailItem = {
+            ...sampleItem("ready"),
+            id: "later",
+            receivedAt: Timestamp.fromMillis(2000),
+        };
+        repository.items.set("earlier", earlier);
+        repository.items.set("later", later);
+
+        const response = await createRoutes({ repository }).request(
+            "/api/mails"
+        );
+        expect(response.status).toBe(200);
+        const items = MailApiItemSchema.array().parse(await response.json());
+        expect(items).toHaveLength(2);
+        expect(items.map((i) => i.id)).toEqual(["later", "earlier"]);
+        for (const item of items) {
+            expect(typeof item.receivedAt).toBe("string");
+        }
+    });
+
+    it("GET /api/mails/:id returns a serialized item", async () => {
+        const repository = new SyncRepository();
+        const item: MailItem = {
+            ...sampleItem("ready"),
             id: "mail-1",
-            status: "reviewed",
+        };
+        repository.items.set("mail-1", item);
+
+        const response = await createRoutes({ repository }).request(
+            "/api/mails/mail-1"
+        );
+        expect(response.status).toBe(200);
+        const body = MailApiItemSchema.parse(await response.json());
+        expect(body.id).toBe("mail-1");
+        expect(body.status).toBe("ready");
+        expect(body.analysis?.promotionDraft).toBe(analysis.promotionDraft);
+    });
+
+    it("GET /api/mails/:id returns 404 for unknown id", async () => {
+        const response = await createRoutes({
+            repository: new SyncRepository(),
+        }).request("/api/mails/unknown");
+        expect(response.status).toBe(404);
+        expect(await response.json()).toMatchObject({
+            error: "Mail not found",
         });
     });
 });
