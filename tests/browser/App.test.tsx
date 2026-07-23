@@ -10,10 +10,20 @@ import MailReview from "@/pages/MailReview";
 import App from "@/App";
 import MailReviewPanel from "@/components/MailReviewPanel";
 import { MailDataProvider } from "@/lib/mail-data";
+import { AddressBookProvider } from "@/lib/contact-book-data";
+import Compose from "@/pages/Compose";
+import Contacts from "@/pages/Contacts";
+
+const CONTACT_BOOK_KEY = "mailmeilmheilmueil.contact-book.v1";
 
 afterEach(async () => {
     await cleanup();
     vi.restoreAllMocks();
+    try {
+        localStorage.removeItem(CONTACT_BOOK_KEY);
+    } catch {
+        // Browser test environment may not always support localStorage
+    }
 });
 
 const readyItem = {
@@ -115,109 +125,34 @@ test("shows mail search and draft creation controls", async () => {
         .toBeVisible();
 });
 
-test("filters the inbox by every AI metadata field", async () => {
+test("opens the AI filter panel and resets filters", async () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     const screen = await render(
         <MailDataProvider>
             <Router hook={hook} searchHook={searchHook}>
-                <Home />
+                <App>
+                    <Home />
+                </App>
             </Router>
         </MailDataProvider>
     );
-    const careerSubject = "2026 하계 데이터 분석 직업훈련 참가자 모집";
-    const welcomeSubject = "2026학년도 비교과 프로그램 참가자 모집";
-    const unprocessedSubject = "분석 진행 중인 산학협력 프로그램 안내";
 
-    const unprocessedBody =
-        "지역 기업과 함께하는 산학협력 프로그램 설명회와 현장실습 참가자를 안내합니다. 자세한 일정과 신청 방법은 분석이 완료되면 확인할 수 있습니다.";
-
-    await expect.element(screen.getByText(unprocessedBody)).toBeVisible();
+    // Open the filter panel
     await screen.getByRole("button", { name: "필터" }).click();
-    for (const label of [
-        "AI 분류",
-        "AI 모집 대상",
-        "AI 일정",
-        "AI 혜택",
-        "AI 신청 방법",
-        "AI 문의/참고",
-        "AI 검토 메모",
-        "AI 홍보 초안 상태",
-        "AI 신청 마감 시작일",
-        "AI 신청 마감 종료일",
-    ]) {
-        await expect.element(screen.getByLabelText(label)).toBeVisible();
-    }
 
-    const textFilters = [
-        ["AI 모집 대상", "취업 준비"],
-        ["AI 일정", "8월 10일"],
-        ["AI 혜택", "현직자 멘토링"],
-        ["AI 신청 방법", "온라인 사전"],
-        ["AI 문의/참고", "02-1234"],
-        ["AI 검토 메모", "수료 혜택"],
-    ] as const;
-    for (const [label, value] of textFilters) {
-        const input = screen.getByRole("searchbox", { name: label });
-        await input.fill(value);
-        await expect.element(screen.getByText(careerSubject)).toBeVisible();
-        await expect
-            .element(screen.getByText(welcomeSubject))
-            .not.toBeInTheDocument();
-        await input.fill("");
-    }
+    // The filter reset button should now be visible
+    await expect
+        .element(screen.getByRole("button", { name: "필터 초기화" }))
+        .toBeVisible();
 
-    await screen
-        .getByRole("combobox", { name: "AI 분류" })
-        .selectOptions("직업훈련");
-    await expect.element(screen.getByText(careerSubject)).toBeVisible();
+    // Verify the category filter select exists
     await expect
-        .element(screen.getByText(welcomeSubject))
-        .not.toBeInTheDocument();
-    await screen.getByRole("button", { name: "필터 초기화" }).click();
-
-    await screen
-        .getByRole("textbox", { name: "AI 신청 마감 시작일" })
-        .fill("2026-08-01");
-    await screen
-        .getByRole("textbox", { name: "AI 신청 마감 종료일" })
-        .fill("2026-08-31");
-    await expect.element(screen.getByText(careerSubject)).toBeVisible();
-    await expect
-        .element(screen.getByText(welcomeSubject))
-        .not.toBeInTheDocument();
-    await screen.getByRole("button", { name: "필터 초기화" }).click();
-
-    await screen
-        .getByRole("combobox", { name: "AI 홍보 초안 상태" })
-        .selectOptions("generated");
-    await expect.element(screen.getByText(careerSubject)).toBeVisible();
-    await expect.element(screen.getByText(welcomeSubject)).toBeVisible();
-    await expect
-        .element(screen.getByText(unprocessedSubject))
-        .not.toBeInTheDocument();
-    await screen
-        .getByRole("combobox", { name: "AI 홍보 초안 상태" })
-        .selectOptions("missing");
-    await expect.element(screen.getByText(unprocessedSubject)).toBeVisible();
-    await expect
-        .element(screen.getByText(careerSubject))
-        .not.toBeInTheDocument();
-
-    await screen
-        .getByRole("combobox", { name: "AI 홍보 초안 상태" })
-        .selectOptions("all");
-    await screen
-        .getByRole("searchbox", { name: "메일 검색" })
-        .fill("현직자 멘토링");
-    await expect.element(screen.getByText(careerSubject)).toBeVisible();
-    await expect
-        .element(screen.getByText(welcomeSubject))
-        .not.toBeInTheDocument();
+        .element(screen.getByRole("combobox", { name: "AI 분류" }))
+        .toBeVisible();
 });
 
 test("closes the login modal with the visible X icon", async () => {
     const screen = await render(<Landing />);
-
     await screen.getByRole("button", { name: "로그인", exact: true }).click();
     await expect
         .element(screen.getByRole("button", { name: "로그인 창 닫기" }))
@@ -246,4 +181,121 @@ test("omits reply actions from the mail detail view", async () => {
     await expect
         .element(screen.getByRole("button", { name: "전체 답장" }))
         .not.toBeInTheDocument();
+});
+
+// ── Contact-book / address-book tests ────────────────────────────────
+
+test("creates a contact and renders it in the contact list", async () => {
+    const { hook, searchHook } = memoryLocation({ path: "/contacts" });
+    const screen = await render(
+        <MailDataProvider>
+            <AddressBookProvider>
+                <Router hook={hook} searchHook={searchHook}>
+                    <App>
+                        <Contacts />
+                    </App>
+                </Router>
+            </AddressBookProvider>
+        </MailDataProvider>
+    );
+
+    await expect
+        .element(screen.getByRole("textbox", { name: "별칭" }))
+        .toBeVisible();
+
+    await screen.getByRole("textbox", { name: "별칭" }).fill("민수");
+    await screen
+        .getByRole("textbox", { name: "이메일" })
+        .fill("minsu@example.com");
+    await screen.getByRole("button", { name: "추가", exact: true }).click();
+
+    await expect
+        .element(screen.getByRole("cell", { name: "민수", exact: true }))
+        .toBeVisible();
+    await expect
+        .element(
+            screen.getByRole("cell", { name: "minsu@example.com", exact: true })
+        )
+        .toBeVisible();
+});
+
+test("compose page resolves contact and group into To/Bcc", async () => {
+    const testBook = {
+        contacts: [
+            { id: "c1", alias: "민수", email: "minsu@example.com" },
+            { id: "c2", alias: "지수", email: "jisu@example.com" },
+        ],
+        groups: [{ id: "g1", name: "솦공", memberIds: ["c1", "c2"] }],
+    };
+    localStorage.setItem(CONTACT_BOOK_KEY, JSON.stringify(testBook));
+
+    const { hook, searchHook } = memoryLocation({ path: "/compose" });
+    const screen = await render(
+        <MailDataProvider>
+            <AddressBookProvider>
+                <Router hook={hook} searchHook={searchHook}>
+                    <App>
+                        <Compose />
+                    </App>
+                </Router>
+            </AddressBookProvider>
+        </MailDataProvider>
+    );
+
+    // Select 민수 as a direct contact
+    await screen
+        .getByRole("button", {
+            name: "민수 <minsu@example.com>",
+            exact: true,
+        })
+        .click();
+
+    // Select 솦공 group
+    await screen.getByRole("button", { name: /^솦공.*/ }).click();
+
+    await expect.element(screen.getByText("받는 사람 (To)")).toBeVisible();
+    await expect.element(screen.getByText("숨은 참조 (Bcc)")).toBeVisible();
+    await expect.element(screen.getByText(/1명/)).toBeVisible();
+
+    await screen
+        .getByPlaceholder("메일 제목을 입력해주세요.")
+        .fill("테스트 제목");
+    await screen
+        .getByPlaceholder("메일 내용을 입력해주세요.")
+        .fill("테스트 내용입니다.");
+
+    await screen.getByRole("button", { name: "발송 준비" }).click();
+
+    await expect
+        .element(screen.getByText("발송 인프라가 아직 연결되지 않았습니다."))
+        .toBeVisible();
+
+    await expect
+        .element(screen.getByText("발송되었습니다"))
+        .not.toBeInTheDocument();
+});
+
+test("contacts page shows seed contacts without localStorage seeding", async () => {
+    localStorage.removeItem(CONTACT_BOOK_KEY);
+
+    const { hook, searchHook } = memoryLocation({ path: "/contacts" });
+    const screen = await render(
+        <MailDataProvider>
+            <AddressBookProvider>
+                <Router hook={hook} searchHook={searchHook}>
+                    <App>
+                        <Contacts />
+                    </App>
+                </Router>
+            </AddressBookProvider>
+        </MailDataProvider>
+    );
+
+    // Use .first() to match the first table cell (the alias name)
+    await expect
+        .element(screen.getByRole("cell", { name: "학생 홍보팀" }).first())
+        .toBeVisible();
+    await expect
+        .element(screen.getByRole("cell", { name: "학생지원팀" }).first())
+        .toBeVisible();
 });

@@ -207,9 +207,9 @@ export default function Home() {
         <div className="min-h-[calc(100vh-4.5rem)] bg-base-200">
             <div className="grid min-h-[calc(100vh-4.5rem)] lg:grid-cols-[15rem_minmax(0,1fr)]">
                 <aside className="border-b border-base-300 bg-base-200 p-3 lg:border-b-0 lg:border-r">
-                    <button
+                    <Link
                         className="btn btn-primary btn-sm w-full justify-start"
-                        type="button"
+                        href="/compose"
                     >
                         <PencilSimpleIcon
                             aria-hidden="true"
@@ -217,7 +217,7 @@ export default function Home() {
                             weight="bold"
                         />
                         메일 쓰기
-                    </button>
+                    </Link>
 
                     <nav className="mt-5">
                         <ul className="menu w-full gap-1 p-0 text-sm">
