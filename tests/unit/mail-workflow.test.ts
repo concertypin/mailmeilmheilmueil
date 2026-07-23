@@ -894,7 +894,8 @@ describe("POST /api/sync — Basic auth", () => {
     });
 
     it("allows GET /api/mails without auth", async () => {
-        const response = await routes.request("/api/mails");
+        const localRoutes = createRoutes({ repository: new FakeRepository() });
+        const response = await localRoutes.request("/api/mails");
         expect(response.status).toBe(200);
     });
 });
