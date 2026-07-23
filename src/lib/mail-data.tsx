@@ -122,6 +122,7 @@ export function MailDataProvider({
                             (item) => prevMap.get(item.id) ?? item
                         );
                     });
+                    setIsLoading(false);
                 }
             })
             .catch((err: unknown) => {
