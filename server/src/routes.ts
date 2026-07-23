@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { Timestamp } from "firebase-admin/firestore";
 import {
+    ComposeRequestSchema,
     ReviewMailRequestSchema,
     toMailApiItem,
 } from "../../src/lib/mail-schema";
@@ -141,5 +142,58 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 return context.json({ error: "Mail not found" }, 404);
             }
             return context.json(toMailApiItem(updated));
+        })
+        .post("/api/compose", async (context) => {
+            const credentials = parseImapBasicAuthorization(
+                context.req.header("authorization")
+            );
+            if (!credentials) {
+                return context.json(
+                    { error: "IMAP credentials are required" },
+                    401,
+                    { "WWW-Authenticate": 'Basic realm="IMAP"' }
+                );
+            }
+
+            let body: unknown;
+            try {
+                body = await context.req.json();
+            } catch {
+                return context.json({ error: "Invalid JSON body" }, 400);
+            }
+
+            const parsed = ComposeRequestSchema.safeParse(body);
+            if (!parsed.success) {
+                return context.json(
+                    { error: "to, subject, and body are required" },
+                    400
+                );
+            }
+
+            const id = await repository.create({
+                senderName: credentials.account,
+                senderAddress: credentials.account,
+                recipients: parsed.data.to,
+                cc: parsed.data.cc,
+                bcc: parsed.data.bcc,
+                subject: parsed.data.subject,
+                textBody: parsed.data.body,
+                receivedAt: Timestamp.now(),
+                externalMessageId: null,
+                status: "sent",
+                processedAt: null,
+                reviewedAt: null,
+                failureMessage: null,
+                analysis: null,
+            });
+
+            const created = await repository.get(id);
+            if (!created) {
+                return context.json(
+                    { error: "Failed to create sent mail" },
+                    500
+                );
+            }
+            return context.json(toMailApiItem(created), 201);
         });
 }

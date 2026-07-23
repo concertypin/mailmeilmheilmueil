@@ -32,6 +32,7 @@ function lifecycleLabel(status: MailItem["status"]): string {
         ready: "검토 대기",
         failed: "분석 실패",
         reviewed: "검토 완료",
+        sent: "발송 완료",
     } satisfies Record<MailItem["status"], string>;
     return labels[status];
 }
