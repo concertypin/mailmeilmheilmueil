@@ -27,6 +27,7 @@ function statusLabel(status: MailItem["status"]): string {
         ready: "검토 대기",
         failed: "분석 실패",
         reviewed: "검토 완료",
+        sent: "발송 완료",
     } satisfies Record<MailItem["status"], string>;
     return labels[status];
 }
@@ -143,7 +144,7 @@ export default function Home() {
         if (activeMailbox === "important") {
             return INITIAL_IMPORTANT_MAIL_IDS[item.id] === true;
         }
-        return item.status !== "reviewed";
+        return item.status !== "reviewed" && item.status !== "sent";
     });
     const activeMailboxTitle =
         activeMailbox === "inbox"
@@ -285,7 +286,9 @@ export default function Home() {
                                     <span className="badge badge-sm">
                                         {items
                                             ? items.filter(
-                                                  (i) => i.status !== "reviewed"
+                                                  (i) =>
+                                                      i.status !== "reviewed" &&
+                                                      i.status !== "sent"
                                               ).length
                                             : "—"}
                                     </span>

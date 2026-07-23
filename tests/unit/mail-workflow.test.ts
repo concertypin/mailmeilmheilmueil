@@ -949,3 +949,140 @@ describe("POST /api/sync — Basic auth", () => {
         expect(response.status).toBe(200);
     });
 });
+
+describe("POST /api/compose — compose mail", () => {
+    class ComposeRepository implements MailRepository {
+        created: Omit<MailItem, "id"> | null = null;
+        current: MailItem | null = null;
+
+        create(item: Omit<MailItem, "id">): Promise<string> {
+            this.created = item;
+            this.current = { id: "sent-1", ...item };
+            return Promise.resolve("sent-1");
+        }
+
+        get(_id: string): Promise<MailItem | null> {
+            return Promise.resolve(this.current);
+        }
+
+        createIfAbsent(): Promise<{ id: string; created: boolean }> {
+            return Promise.resolve({ id: "sent-1", created: true });
+        }
+
+        list(): Promise<MailItem[]> {
+            return Promise.resolve(this.current ? [this.current] : []);
+        }
+
+        update(): Promise<void> {
+            return Promise.resolve();
+        }
+    }
+
+    it("returns 401 without Authorization header", async () => {
+        const repository = new ComposeRepository();
+        const routes = createRoutes({ repository });
+        const response = await routes.request("/api/compose", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: ["user@example.invalid"],
+                subject: "Test",
+                body: "Hello",
+            }),
+        });
+        expect(response.status).toBe(401);
+        expect(await response.json()).toMatchObject({
+            error: "IMAP credentials are required",
+        });
+    });
+
+    it("returns 201 with valid auth and body", async () => {
+        const repository = new ComposeRepository();
+        const routes = createRoutes({ repository });
+        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/compose", {
+            method: "POST",
+            headers: {
+                authorization: `Basic ${encoded}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                to: ["student@example.invalid"],
+                cc: ["cc@example.invalid"],
+                bcc: ["bcc@example.invalid"],
+                subject: "Promotion subject",
+                body: "Promotion body content",
+            }),
+        });
+        expect(response.status).toBe(201);
+        const body = MailApiItemSchema.parse(await response.json());
+        expect(body.status).toBe("sent");
+        expect(body.senderAddress).toBe("user@kangnam.ac.kr");
+        expect(body.subject).toBe("Promotion subject");
+        expect(body.textBody).toBe("Promotion body content");
+        expect(body.recipients).toEqual(["student@example.invalid"]);
+        expect(body.cc).toEqual(["cc@example.invalid"]);
+        expect(body.bcc).toEqual(["bcc@example.invalid"]);
+    });
+
+    it("returns 400 for missing required fields", async () => {
+        const repository = new ComposeRepository();
+        const routes = createRoutes({ repository });
+        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/compose", {
+            method: "POST",
+            headers: {
+                authorization: `Basic ${encoded}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({}),
+        });
+        expect(response.status).toBe(400);
+    });
+
+    it("returns 400 for invalid JSON body", async () => {
+        const repository = new ComposeRepository();
+        const routes = createRoutes({ repository });
+        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/compose", {
+            method: "POST",
+            headers: {
+                authorization: `Basic ${encoded}`,
+                "Content-Type": "application/json",
+            },
+            body: "not json",
+        });
+        expect(response.status).toBe(400);
+    });
+
+    it("returns 201 without optional cc/bcc fields", async () => {
+        const repository = new ComposeRepository();
+        const routes = createRoutes({ repository });
+        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
+            "base64"
+        );
+        const response = await routes.request("/api/compose", {
+            method: "POST",
+            headers: {
+                authorization: `Basic ${encoded}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                to: ["student@example.invalid"],
+                subject: "Minimal",
+                body: "No cc/bcc",
+            }),
+        });
+        expect(response.status).toBe(201);
+        const body = MailApiItemSchema.parse(await response.json());
+        expect(body.recipients).toEqual(["student@example.invalid"]);
+        expect(body.cc).toEqual([]);
+        expect(body.bcc).toEqual([]);
+    });
+});
