@@ -96,22 +96,22 @@ const featureCards = [
 
 export default function Landing() {
     const [, setLocation] = useLocation();
-    const searchParams = useSearch();
-    const [isLoginOpen, setIsLoginOpen] = useState(() =>
-        searchParams.includes("imapCredentialsInvalid=1")
+    const searchParams = new URLSearchParams(useSearch());
+    const [isLoginOpen, setIsLoginOpen] = useState(
+        () => searchParams.get("imapCredentialsInvalid") === "1"
     );
     const [hasAgreedToTerms, setHasAgreedToTerms] = useState(false);
     const [account, setAccount] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loginError, setLoginError] = useState<string | null>(null);
-    const [showInvalidAlert, setShowInvalidAlert] = useState(() =>
-        searchParams.includes("imapCredentialsInvalid=1")
+    const [showInvalidAlert, setShowInvalidAlert] = useState(
+        () => searchParams.get("imapCredentialsInvalid") === "1"
     );
 
     // Clear the invalid-credential flag on mount
     useEffect(() => {
-        if (searchParams.includes("imapCredentialsInvalid=1")) {
+        if (searchParams.get("imapCredentialsInvalid") === "1") {
             setLocation("/", { replace: true });
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
