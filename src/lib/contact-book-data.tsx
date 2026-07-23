@@ -64,9 +64,18 @@ const AddressBookContext = createContext<AddressBookContextValue | null>(null);
 
 // ── Provider ──────────────────────────────────────────────────────────
 
+/** @returns the browser localStorage reference, or null when blocked. */
+function getDefaultStorage(): Storage | null {
+    try {
+        return globalThis.localStorage ?? null;
+    } catch {
+        return null;
+    }
+}
+
 export function AddressBookProvider({
     children,
-    storage = globalThis.localStorage ?? null,
+    storage = getDefaultStorage(),
 }: {
     children?: ReactNode;
     /** Override storage (for tests).  Defaults to `globalThis.localStorage`. */
@@ -92,14 +101,12 @@ export function AddressBookProvider({
                 const saved = trySave(result.book);
                 setState({
                     book: result.book,
-                    // Keep warning only when storage remains unavailable even
-                    // after a successful mutation overwrites corrupt data.
-                    storageWarning: storageWarning && !saved,
+                    storageWarning: !saved,
                 });
             }
             return result;
         },
-        [storageWarning, trySave]
+        [trySave]
     );
 
     const ctx = useMemo((): AddressBookContextValue => {
@@ -114,7 +121,7 @@ export function AddressBookProvider({
             const saved = trySave(next);
             setState({
                 book: next,
-                storageWarning: storageWarning && !saved,
+                storageWarning: !saved,
             });
         };
 
@@ -129,7 +136,7 @@ export function AddressBookProvider({
             const saved = trySave(next);
             setState({
                 book: next,
-                storageWarning: storageWarning && !saved,
+                storageWarning: !saved,
             });
         };
 

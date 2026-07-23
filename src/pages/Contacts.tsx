@@ -123,9 +123,15 @@ export default function Contacts() {
         }
     };
 
+    const validContactIds = new Set(book.contacts.map((c) => c.id));
+
     const handleAddGroup = (event: React.SyntheticEvent) => {
         event.preventDefault();
-        const result = addGroup({ name: groupName, memberIds: groupMemberIds });
+        const validIds = groupMemberIds.filter((id) => validContactIds.has(id));
+        const result = addGroup({
+            name: groupName,
+            memberIds: validIds,
+        });
         showFeedback(
             result,
             () => {
@@ -146,9 +152,12 @@ export default function Contacts() {
     const handleEditGroup = (event: React.SyntheticEvent) => {
         event.preventDefault();
         if (!editingGroup) return;
+        const validIds = editGroupMemberIds.filter((id) =>
+            validContactIds.has(id)
+        );
         const result = updateGroup(editingGroup.id, {
             name: editGroupName,
-            memberIds: editGroupMemberIds,
+            memberIds: validIds,
         });
         showFeedback(result, () => setEditingGroup(null), setEditGroupFeedback);
     };
