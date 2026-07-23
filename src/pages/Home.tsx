@@ -8,13 +8,12 @@ import {
     StarIcon,
 } from "@phosphor-icons/react";
 import { Link, useSearchParams } from "wouter";
-import { mockMailItems } from "@/lib/mock-mail";
+import { useMailData } from "@/lib/mail-data";
 import {
     mailCategories,
     type MailAnalysis,
     type MailItem,
 } from "@/lib/mail-schema";
-import { useMailWorkspace } from "@/lib/mail-workspace";
 
 function statusLabel(status: MailItem["status"]): string {
     const labels = {
@@ -69,29 +68,19 @@ export default function Home() {
             ? folder
             : "inbox";
     });
-    const { reviewedMailIds, draftsByMailId } = useMailWorkspace();
-    const visibleMailItems = mockMailItems
-        .map((item) => {
-            const promotionDraft = draftsByMailId[item.id];
-            return promotionDraft !== undefined && item.analysis
-                ? {
-                      ...item,
-                      analysis: { ...item.analysis, promotionDraft },
-                  }
-                : item;
-        })
-        .filter((item) => {
-            if (activeMailbox === "review") {
-                return !reviewedMailIds.has(item.id) && item.analysis !== null;
-            }
-            if (activeMailbox === "outbox") {
-                return reviewedMailIds.has(item.id);
-            }
-            if (activeMailbox === "important") {
-                return INITIAL_IMPORTANT_MAIL_IDS[item.id] === true;
-            }
-            return !reviewedMailIds.has(item.id);
-        });
+    const { items, isLoading, loadError } = useMailData();
+    const visibleMailItems = (items ?? []).filter((item) => {
+        if (activeMailbox === "review") {
+            return item.status === "ready" && item.analysis !== null;
+        }
+        if (activeMailbox === "outbox") {
+            return item.status === "reviewed";
+        }
+        if (activeMailbox === "important") {
+            return INITIAL_IMPORTANT_MAIL_IDS[item.id] === true;
+        }
+        return item.status !== "reviewed";
+    });
     const activeMailboxTitle =
         activeMailbox === "inbox"
             ? "받은메일함"
@@ -248,7 +237,11 @@ export default function Home() {
                                     />
                                     받은메일함
                                     <span className="badge badge-sm">
-                                        {mockMailItems.length}
+                                        {items
+                                            ? items.filter(
+                                                  (i) => i.status !== "reviewed"
+                                              ).length
+                                            : "—"}
                                     </span>
                                 </button>
                             </li>
@@ -297,14 +290,13 @@ export default function Home() {
                                         </span>
                                     </span>
                                     <span className="badge badge-primary badge-sm">
-                                        {
-                                            mockMailItems.filter(
-                                                (item) =>
-                                                    !reviewedMailIds.has(
-                                                        item.id
-                                                    ) && item.analysis !== null
-                                            ).length
-                                        }
+                                        {items
+                                            ? items.filter(
+                                                  (i) =>
+                                                      i.status === "ready" &&
+                                                      i.analysis !== null
+                                              ).length
+                                            : "—"}
                                     </span>
                                 </button>
                             </li>
@@ -320,14 +312,15 @@ export default function Home() {
                                 >
                                     발송 대기
                                     <span className="badge badge-sm">
-                                        {reviewedMailIds.size}
+                                        {items
+                                            ? items.filter(
+                                                  (i) => i.status === "reviewed"
+                                              ).length
+                                            : "—"}
                                     </span>
                                 </button>
                             </li>
                         </ul>
-                    </div>
-
-                    <div className="mt-7 border-t border-base-300 pt-5">
                         <Link
                             className="btn btn-ghost btn-sm w-full justify-start"
                             href="/contacts"
@@ -339,6 +332,22 @@ export default function Home() {
                 </aside>
 
                 <section className="bg-base-100">
+                    {isLoading ? (
+                        <div
+                            role="alert"
+                            className="alert alert-info mx-5 mt-4 sm:mx-8"
+                        >
+                            <span>메일을 불러오는 중...</span>
+                        </div>
+                    ) : null}
+                    {loadError ? (
+                        <div
+                            role="alert"
+                            className="alert alert-error mx-5 mt-4 sm:mx-8"
+                        >
+                            <span>메일을 불러오지 못했습니다: {loadError}</span>
+                        </div>
+                    ) : null}
                     <div className="border-b border-base-300 bg-base-100 px-5 py-4 sm:px-8">
                         <div className="flex flex-wrap items-center justify-between gap-4">
                             <div>
@@ -398,7 +407,15 @@ export default function Home() {
 
                         {isFilterOpen ? (
                             <div className="card mt-4 border border-base-300 bg-base-200 shadow-sm">
-                                <div className="card-body grid gap-4 p-5 md:grid-cols-3">
+                                <div className="card-body grid gap-5 p-5 sm:grid-cols-2 xl:grid-cols-3">
+                                    <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3">
+                                        <h3 className="font-semibold">
+                                            기본 필터
+                                        </h3>
+                                        <span className="text-xs text-base-content/55">
+                                            보낸사람과 수신일
+                                        </span>
+                                    </div>
                                     <label className="fieldset">
                                         <span className="label">보낸사람</span>
                                         <input
@@ -446,6 +463,14 @@ export default function Home() {
                                             />
                                         </div>
                                     </fieldset>
+                                    <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3 pt-2">
+                                        <h3 className="font-semibold">
+                                            AI 분석 필터
+                                        </h3>
+                                        <span className="text-xs text-base-content/55">
+                                            메일에서 추출한 정보
+                                        </span>
+                                    </div>
                                     <label className="fieldset">
                                         <span className="label">AI 분류</span>
                                         <select
@@ -600,7 +625,7 @@ export default function Home() {
                                             </option>
                                         </select>
                                     </label>
-                                    <div className="card-actions col-span-full mt-1 items-center justify-between">
+                                    <div className="card-actions col-span-full mt-1 items-center justify-between border-t border-base-300 pt-4">
                                         <p className="text-sm text-base-content/60">
                                             검색 결과 {filteredMailItems.length}
                                             개

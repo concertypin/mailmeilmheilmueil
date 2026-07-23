@@ -80,7 +80,3 @@ export const mockMailItems: MailItem[] = [
         analysis: null,
     },
 ];
-
-export function findMockMailItem(id: string): MailItem | null {
-    return mockMailItems.find((item) => item.id === id) ?? null;
-}

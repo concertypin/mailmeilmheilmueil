@@ -21,6 +21,7 @@ export interface MailRepository {
         idempotencyKey: string
     ): Promise<{ id: string; created: boolean }>;
     get(id: string): Promise<MailItem | null>;
+    list(): Promise<MailItem[]>;
     update(id: string, update: MailUpdate): Promise<void>;
 }
 
@@ -66,6 +67,13 @@ export const firestoreRepository: MailRepository = {
     },
     async update(id, update) {
         await db.collection("mailItems").doc(id).update(update);
+    },
+    async list() {
+        const snapshot = await db
+            .collection("mailItems")
+            .orderBy("receivedAt", "desc")
+            .get();
+        return snapshot.docs.map((doc) => parseMailItem(doc.id, doc.data()));
     },
 };
 
