@@ -31,6 +31,24 @@ interface ComposeDraft {
     body: string;
 }
 
+function isValidDraft(value: unknown): value is ComposeDraft {
+    if (typeof value !== "object" || value === null) return false;
+    const obj: Record<string, unknown> = {};
+    for (const key of Object.keys(value)) {
+        obj[key] = (value as Record<string, unknown>)[key];
+    }
+    if (!Array.isArray(obj.selections)) return false;
+    if (typeof obj.subject !== "string") return false;
+    if (typeof obj.body !== "string") return false;
+    return obj.selections.every(
+        (sel: unknown) =>
+            typeof sel === "object" &&
+            sel !== null &&
+            typeof (sel as Record<string, unknown>).kind === "string" &&
+            typeof (sel as Record<string, unknown>).id === "string"
+    );
+}
+
 export default function Compose() {
     const { book, storageWarning } = useAddressBook();
     const { items } = useMailData();
@@ -53,17 +71,10 @@ export default function Compose() {
             const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
             if (!raw) return;
             const parsed: unknown = JSON.parse(raw);
-            if (typeof parsed !== "object" || parsed === null) return;
-            const draft = parsed as ComposeDraft;
-            if (Array.isArray(draft.selections)) {
-                setSelections(draft.selections);
-            }
-            if (typeof draft.subject === "string") {
-                setSubject(draft.subject);
-            }
-            if (typeof draft.body === "string") {
-                setBody(draft.body);
-            }
+            if (!isValidDraft(parsed)) return;
+            setSelections(parsed.selections);
+            setSubject(parsed.subject);
+            setBody(parsed.body);
         } catch {
             /* ignore corrupt draft */
         }
@@ -94,6 +105,7 @@ export default function Compose() {
     }, [saveDraft]);
 
     const clearDraft = useCallback(() => {
+        clearTimeout(draftTimeoutRef.current);
         try {
             sessionStorage.removeItem(DRAFT_STORAGE_KEY);
         } catch {
