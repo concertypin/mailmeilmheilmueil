@@ -1086,3 +1086,54 @@ describe("POST /api/compose — compose mail", () => {
         expect(body.bcc).toEqual([]);
     });
 });
+
+describe("POST /api/mails/:id/flag — flag mail as important", () => {
+    it("toggles isImportant on a mail item", async () => {
+        const repository = new FakeRepository();
+        const routes = createRoutes({ repository });
+
+        const response = await routes.request("/api/mails/mail-1/flag", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ important: true }),
+        });
+        expect(response.status).toBe(200);
+        const body = MailApiItemSchema.parse(await response.json());
+        expect(body.isImportant).toBe(true);
+
+        // Toggle back
+        const toggled = await routes.request("/api/mails/mail-1/flag", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ important: false }),
+        });
+        expect(toggled.status).toBe(200);
+        const toggledBody = MailApiItemSchema.parse(await toggled.json());
+        expect(toggledBody.isImportant).toBe(false);
+    });
+
+    it("returns 404 for unknown mail", async () => {
+        const repository = new FakeRepository();
+        repository.get = () => Promise.resolve(null);
+        const routes = createRoutes({ repository });
+
+        const response = await routes.request("/api/mails/unknown/flag", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ important: true }),
+        });
+        expect(response.status).toBe(404);
+    });
+
+    it("returns 400 for missing important flag", async () => {
+        const repository = new FakeRepository();
+        const routes = createRoutes({ repository });
+
+        const response = await routes.request("/api/mails/mail-1/flag", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+        });
+        expect(response.status).toBe(400);
+    });
+});

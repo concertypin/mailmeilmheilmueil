@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
     AddressBookIcon,
     FunnelIcon,
@@ -32,10 +32,6 @@ function statusLabel(status: MailItem["status"]): string {
     return labels[status];
 }
 
-const INITIAL_IMPORTANT_MAIL_IDS: Readonly<Record<string, true>> = {
-    "welcome-mail": true,
-};
-
 export default function Home() {
     const [selectedMailIds, setSelectedMailIds] = useState<Set<string>>(
         new Set()
@@ -63,6 +59,7 @@ export default function Home() {
     const [promotionDraftMessage, setPromotionDraftMessage] = useState<
         string | null
     >(null);
+    const flaggingRef = useRef(new Set<string>());
     const [searchParams] = useSearchParams();
     const [activeMailbox, setActiveMailbox] = useState<
         "inbox" | "important" | "review" | "outbox"
@@ -142,7 +139,7 @@ export default function Home() {
             return item.status === "reviewed";
         }
         if (activeMailbox === "important") {
-            return INITIAL_IMPORTANT_MAIL_IDS[item.id] === true;
+            return item.isImportant === true;
         }
         return item.status !== "reviewed" && item.status !== "sent";
     });
@@ -309,11 +306,11 @@ export default function Home() {
                                     <StarIcon aria-hidden="true" size={18} />
                                     중요 메일
                                     <span className="badge badge-sm">
-                                        {
-                                            Object.keys(
-                                                INITIAL_IMPORTANT_MAIL_IDS
-                                            ).length
-                                        }
+                                        {items
+                                            ? items.filter(
+                                                  (i) => i.isImportant === true
+                                              ).length
+                                            : "—"}
                                     </span>
                                 </button>
                             </li>
@@ -809,6 +806,49 @@ export default function Home() {
                                         type="checkbox"
                                     />
                                 </label>
+                                <button
+                                    aria-label={
+                                        item.isImportant
+                                            ? "중요 메일 해제"
+                                            : "중요 메일 지정"
+                                    }
+                                    className={`btn btn-ghost btn-xs ${item.isImportant ? "text-yellow-500" : "text-base-content/30"}`}
+                                    onClick={() => {
+                                        const id = item.id;
+                                        if (flaggingRef.current.has(id)) return;
+                                        flaggingRef.current.add(id);
+                                        void fetch(`/api/mails/${id}/flag`, {
+                                            method: "POST",
+                                            headers: {
+                                                "Content-Type":
+                                                    "application/json",
+                                            },
+                                            body: JSON.stringify({
+                                                important: !item.isImportant,
+                                            }),
+                                        })
+                                            .then((res) => {
+                                                if (res.ok) void refresh();
+                                            })
+                                            .catch(() => {
+                                                /* ignore network errors */
+                                            })
+                                            .finally(() => {
+                                                flaggingRef.current.delete(id);
+                                            });
+                                    }}
+                                    type="button"
+                                >
+                                    <StarIcon
+                                        aria-hidden="true"
+                                        size={16}
+                                        weight={
+                                            item.isImportant
+                                                ? "fill"
+                                                : "regular"
+                                        }
+                                    />
+                                </button>
                                 <Link
                                     className="min-w-0 flex-1"
                                     href={
