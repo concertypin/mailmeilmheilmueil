@@ -5,7 +5,7 @@ All agents, such as Claude Code, should keep `**/AGENTS.md` in mind.
 
 ## Project Type
 
-This is a **Preact SPA template** built with Vite. Source imports use the React-compatible module contract so the runtime can be switched between Preact and real React by a single build toggle. It uses a custom Vite plugin to copy `index.html` to route directories at build time for HTTP static hosting and GitHub Pages fallback. The current frontend uses local mock mail data; Firestore, API, and server-backed mail synchronization are reserved for a later integration.
+This is a **React SPA** built with Vite. It uses `@vitejs/plugin-react` (no Preact compatibility layer). The frontend always calls the Hono/Firestore API for mail data. On-demand IMAP synchronization uses Basic authentication stored in sessionStorage. Real external IMAP and AI provider credentials remain deployment configuration, not repository content. A custom Vite plugin copies `index.html` to route directories at build time for HTTP static hosting and GitHub Pages fallback.
 
 ## Development Commands
 
@@ -28,15 +28,14 @@ pnpm test
 
 ## Architecture
 
-- **Framework toggle**: `vite.config.ts` has a top-level `const usePreact = true`. When `true`, `@preact/preset-vite` aliases `react`, `react-dom`, and `react/jsx-runtime` to `preact/compat`. When `false`, `@vitejs/plugin-react` uses the real React packages (already installed as dependencies). The plugins array normalizes both single-Plugin and Plugin[] returns via `[frameworkPlugins].flat()`.
 - **Entry point**: `src/index.tsx` — Mounts the app using `createRoot` from `react-dom/client` and renders the Wouter route switch.
-- **Routing**: Uses `wouter` with browser History API routes for `/`, `/inbox`, `/contacts`, and `/mails/:mailId`. The frontend is served over HTTP; `file://` navigation is intentionally unsupported.
+- **Routing**: Uses `wouter` with browser History API routes for `/`, `/inbox`, `/contacts`, `/compose`, and `/mails/:mailId`. Review UI is entered via `/mails/:mailId?mode=review`. The frontend is served over HTTP; `file://` navigation is intentionally unsupported.
 - **Build plugin**: A custom Vite plugin (`spaCopyPlugin` in `vite.config.ts`) copies `dist/index.html` to `dist/404.html` for GitHub Pages fallback.
 - **ES modules** throughout (`"type": "module"` in package.json)
 - **Output format**: Generates SPA files in the `dist/` directory with relative asset paths (`base: "./"`).
-- **Type definitions**: TypeScript throughout with `@types/react` providing the stable type contract for both framework modes.
-- **Testing**: Uses `vitest-browser-react` for component rendering in Vitest Browser Mode (browser tests), and standard Vitest for Node.js unit tests. The same test renderer works in both framework modes since Preact compat aliases the React imports.
-- **Linting**: Uses oxlint with the native `react` plugin (Rust, not ESLint bridge). React-specific rules like `react/jsx-key`, `react/rules-of-hooks`, and `react/exhaustive-deps` are configured in `scripts/linter/oxlint-react.ts` and extended from `oxlint.config.ts`. `react/react-in-jsx-scope` is disabled because the template uses the automatic JSX runtime.
+- **Type definitions**: TypeScript throughout with `@types/react`.
+- **Testing**: Uses `@testing-library/react` with `jsdom` environment for component rendering tests, and standard Vitest for Node.js unit tests. `@testing-library/user-event` provides realistic user interaction simulation.
+- **Linting**: Uses oxlint with the native `react` plugin (Rust, not ESLint bridge). React-specific rules like `react/jsx-key`, `react/rules-of-hooks`, and `react/exhaustive-deps` are configured in `scripts/linter/oxlint-react.ts` and extended from `oxlint.config.ts`. `react/react-in-jsx-scope` is disabled because Vite uses the automatic JSX runtime.
 
 ## Coding Standards
 
@@ -48,10 +47,10 @@ MCP Server:
 
 ## TypeScript Configuration
 
-- **Path alias**: `@/*` maps to `src/*` (configured in `tsconfig.base.json`)
+- **Path alias**: `@/*` maps to `src/*`, `@server/*` maps to `server/src/*`, `@test/*` maps to `tests/*` (configured in `tsconfig.base.json`)
 - **Project references**: Uses `tsconfig.json` with `app` and `node` references
 - **Strict mode** enabled
-- **JSX**: Set to `"preserve"` with `"jsxImportSource": "react"` — the same JSX transform works for both Preact and React at runtime.
+- **JSX**: Set to `"preserve"` with `"jsxImportSource": "react"`.
 
 ## Package Manager
 
