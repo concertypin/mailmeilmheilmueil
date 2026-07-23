@@ -170,7 +170,11 @@ export function MailDataProvider({
             if (cached) return cached;
             const result = await resolvedSource.get(id);
             if (result) {
-                setItems((prev) => (prev ? [...prev, result] : [result]));
+                setItems((prev) => {
+                    if (!prev) return [result];
+                    if (prev.some((i) => i.id === result.id)) return prev;
+                    return [...prev, result];
+                });
             }
             return result;
         },
