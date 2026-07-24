@@ -211,7 +211,7 @@ export default function Home() {
             analysis?.applicationMethod,
             analysis?.contactOrReference,
             ...(analysis?.reviewNotes ?? []),
-            analysis?.promotionDraft,
+            item.draft ?? "",
         ]
             .filter((value): value is string => Boolean(value))
             .join(" ")
@@ -266,9 +266,9 @@ export default function Home() {
         const matchesPromotionDraft =
             promotionDraftFilter === "all" ||
             (promotionDraftFilter === "generated" &&
-                (analysis?.promotionDraft ?? "").trim().length > 0) ||
+                (item.draft ?? "").trim().length > 0) ||
             (promotionDraftFilter === "missing" &&
-                (analysis?.promotionDraft ?? "").trim().length === 0);
+                (item.draft ?? "").trim().length === 0);
 
         return (
             matchesSearch &&

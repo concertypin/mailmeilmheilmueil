@@ -42,12 +42,10 @@ export default function MailReviewPanel({
     onReview,
     reviewError,
 }: MailReviewPanelProps) {
-    const analysis = item.analysis;
     const isPending = item.status === "queued" || item.status === "processing";
+    const analysis = item.analysis;
     const canReview = item.status === "ready";
-    const [promotionDraft, setPromotionDraft] = useState(
-        analysis?.promotionDraft ?? ""
-    );
+    const [promotionDraft, setPromotionDraft] = useState(item.draft ?? "");
     const [rewritePrompt, setRewritePrompt] = useState("");
     const [conversation, setConversation] = useState<
         DraftConversationMessage[]

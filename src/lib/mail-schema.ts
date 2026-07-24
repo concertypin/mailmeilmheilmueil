@@ -49,9 +49,7 @@ export const MailAnalysisSchema = z.object({
     applicationMethod: nullableText,
     contactOrReference: nullableText,
     reviewNotes: z.array(z.string()),
-    promotionDraft: z.string().min(1),
 });
-
 export type MailAnalysis = z.infer<typeof MailAnalysisSchema>;
 
 export const MailItemSchema = z.object({
@@ -63,6 +61,7 @@ export const MailItemSchema = z.object({
     bcc: z.array(z.string()).optional(),
     subject: z.string(),
     textBody: z.string(),
+    htmlBody: z.string().optional(),
     receivedAt: timestampSchema,
     externalMessageId: z.string().nullable(),
     status: z.enum(mailStatuses),
@@ -70,6 +69,7 @@ export const MailItemSchema = z.object({
     reviewedAt: timestampSchema.nullable(),
     failureMessage: z.string().nullable(),
     analysis: MailAnalysisSchema.nullable(),
+    draft: z.string().nullable().optional(),
     isImportant: z.boolean().optional(),
 });
 

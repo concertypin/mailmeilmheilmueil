@@ -32,6 +32,7 @@ function parsedMail(email: Email, receivedAt: Timestamp): Omit<MailItem, "id"> {
         recipients: [...new Set(recipients)],
         subject: email.subject?.trim() ?? "(제목 없음)",
         textBody: email.text?.trim() ?? "",
+        htmlBody: email.html?.trim() || undefined,
         receivedAt,
         externalMessageId: email.messageId ?? null,
         status: "queued",
@@ -39,6 +40,7 @@ function parsedMail(email: Email, receivedAt: Timestamp): Omit<MailItem, "id"> {
         reviewedAt: null,
         failureMessage: null,
         analysis: null,
+        draft: null,
     };
 }
 async function parseEmail(raw: Buffer): Promise<Email> {

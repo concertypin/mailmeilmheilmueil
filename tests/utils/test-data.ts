@@ -26,8 +26,8 @@ export const readyItem = {
         applicationMethod: "온라인 신청",
         contactOrReference: null,
         reviewNotes: ["신청 페이지 주소와 문의처는 게시 전 확인 필요"],
-        promotionDraft: "데이터 분석 직무교육 참가자를 모집합니다.",
     },
+    draft: "데이터 분석 직무교육 참가자를 모집합니다.",
 } satisfies MailItem;
 
 export const inboxItems: MailItem[] = [
@@ -54,9 +54,8 @@ export const inboxItems: MailItem[] = [
             applicationMethod: "학생역량개발시스템에서 신청",
             contactOrReference: "학생지원팀 02-0000-0000",
             reviewNotes: ["모집 기간과 신청 방법을 확인했습니다."],
-            promotionDraft:
-                "학생들의 성장을 지원하는 비교과 프로그램 참가자를 모집합니다.",
         },
+        draft: "학생들의 성장을 지원하는 비교과 프로그램 참가자를 모집합니다.",
     },
     {
         id: "career-training-mail",
@@ -81,9 +80,8 @@ export const inboxItems: MailItem[] = [
             applicationMethod: "온라인 사전 신청",
             contactOrReference: "미래직업교육원 02-1234-5678",
             reviewNotes: ["교육 일정과 수료 혜택을 확인했습니다."],
-            promotionDraft:
-                "현직자 멘토링과 함께하는 데이터 분석 직업훈련 참가자를 모집합니다.",
         },
+        draft: "현직자 멘토링과 함께하는 데이터 분석 직업훈련 참가자를 모집합니다.",
     },
 ];
 
@@ -98,9 +96,7 @@ export function createFakeMailDataSource(items: MailItem[]): MailDataSource {
                 ...item,
                 status: "reviewed" as const,
                 reviewedAt: Timestamp.now(),
-                analysis: item.analysis
-                    ? { ...item.analysis, promotionDraft: draft.trim() }
-                    : item.analysis,
+                draft: draft.trim(),
             }),
     };
 }

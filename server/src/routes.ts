@@ -174,10 +174,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             await repository.update(id, {
                 status: "reviewed",
                 reviewedAt,
-                analysis: {
-                    ...item.analysis,
-                    promotionDraft: parsed.data.promotionDraft,
-                },
+                draft: parsed.data.promotionDraft,
             });
 
             const updated = await repository.get(id);
@@ -261,6 +258,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                     reviewedAt: null,
                     failureMessage: null,
                     analysis: null,
+                    draft: null,
                 });
 
                 const created = await repository.get(id);

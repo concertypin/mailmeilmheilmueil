@@ -16,9 +16,9 @@ export type MailUpdate = Partial<
         | "failureMessage"
         | "analysis"
         | "isImportant"
+        | "draft"
     >
 >;
-
 export interface MailRepository {
     create(item: Omit<MailItem, "id">): Promise<string>;
     createIfAbsent(

@@ -1,3 +1,4 @@
+import type { FetchMessageObject } from "imapflow";
 import { Timestamp } from "firebase-admin/firestore";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -23,8 +24,6 @@ import {
     runSync,
     type SyncEnvironment,
 } from "@server/sync-main";
-import type { FetchMessageObject } from "imapflow";
-
 const analysis = {
     category: "직업훈련" as const,
     audience: "데이터 분석 직무에 관심 있는 대학생",
@@ -34,7 +33,6 @@ const analysis = {
     applicationMethod: "온라인 신청",
     contactOrReference: null,
     reviewNotes: ["신청 페이지 주소와 문의처는 게시 전 확인 필요"],
-    promotionDraft: "대학생을 위한 데이터 분석 직무교육 참가자를 모집합니다.",
 };
 
 function sampleItem(status: MailItem["status"] = "queued"): MailItem {
@@ -46,6 +44,7 @@ function sampleItem(status: MailItem["status"] = "queued"): MailItem {
         recipients: ["promotion@example.invalid"],
         subject: "2026 여름 데이터 분석 직무교육 참가자 모집",
         textBody: "모집 대상: 데이터 분석 직무에 관심 있는 대학생",
+        htmlBody: undefined,
         receivedAt: timestamp,
         externalMessageId: "<sample@example.invalid>",
         status,
@@ -53,6 +52,7 @@ function sampleItem(status: MailItem["status"] = "queued"): MailItem {
         reviewedAt: null,
         failureMessage: null,
         analysis: status === "ready" || status === "reviewed" ? analysis : null,
+        draft: null,
     };
 }
 
@@ -658,7 +658,7 @@ describe("review routes", () => {
             }
         );
         expect(response.status).toBe(200);
-        expect(ready.item.analysis?.promotionDraft).toBe("Trimmed draft");
+        expect(ready.item.draft).toBe("Trimmed draft");
         const body = MailApiItemSchema.parse(await response.json());
         expect(body.id).toBe("mail-1");
         expect(body.status).toBe("reviewed");
@@ -767,7 +767,6 @@ describe("mail list and get routes", () => {
         const body = MailApiItemSchema.parse(await response.json());
         expect(body.id).toBe("mail-1");
         expect(body.status).toBe("ready");
-        expect(body.analysis?.promotionDraft).toBe(analysis.promotionDraft);
     });
 
     it("GET /api/mails/:id returns 404 for unknown id", async () => {
