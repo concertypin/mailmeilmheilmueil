@@ -94,29 +94,23 @@ test("opens the filter panel and resets filters", async () => {
     expect(screen.getByRole("heading", { name: "분류" })).toBeVisible();
     expect(screen.getByText("검색 결과 2개")).toBeVisible();
     expect(screen.getByRole("heading", { name: "AI 분류 정보" })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "보낸사람" })).toBeVisible();
+    expect(screen.getByLabelText("수신일 시작일")).toBeVisible();
+    expect(screen.getByLabelText("수신일 종료일")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "분류" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "필터 초기화" })).toBeVisible();
+    // AI section is collapsed by default — expand it via its checkbox
+    const aiHeading = screen.getByRole("heading", { name: "AI 분류 정보" });
+    const aiCheckbox = aiHeading
+        .closest(".collapse")!
+        .querySelector('input[type="checkbox"]')!;
+    await user.click(aiCheckbox);
     expect(screen.getByRole("searchbox", { name: "대상" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "일정" })).toBeVisible();
     expect(screen.getByLabelText("신청 마감")).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "혜택" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "신청 방법" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "문의·참고" })).toBeVisible();
-    // AI section is foldable — collapse and verify fields hide
-    await user.click(screen.getByRole("button", { name: /AI 분류 정보/ }));
-    expect(screen.queryByRole("searchbox", { name: "대상" })).toBeNull();
-    expect(
-        screen.getByRole("button", { name: /AI 분류 정보/ })
-    ).toHaveAttribute("aria-expanded", "false");
-    // Expand again so subsequent tests can use the fields
-    await user.click(screen.getByRole("button", { name: /AI 분류 정보/ }));
-    expect(
-        screen.getByRole("button", { name: /AI 분류 정보/ })
-    ).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("searchbox", { name: "대상" })).toBeVisible();
-    expect(screen.getByRole("searchbox", { name: "보낸사람" })).toBeVisible();
-    expect(screen.getByLabelText("수신일 시작일")).toBeVisible();
-    expect(screen.getByLabelText("수신일 종료일")).toBeVisible();
-    expect(screen.getByRole("combobox", { name: "분류" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "필터 초기화" })).toBeVisible();
     // AI-derived audience filter narrows the fixture mail list
     await user.type(
         screen.getByRole("searchbox", { name: "대상" }),
