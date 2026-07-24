@@ -19,7 +19,7 @@ test("closes the login modal with the visible X icon", async () => {
     ).not.toBeInTheDocument();
 });
 
-test("login modal: terms gate and form controls", async () => {
+test("login modal: email+password enables submit button", async () => {
     const user = userEvent.setup();
     const { hook, searchHook } = memoryLocation({ path: "/" });
     render(
@@ -37,15 +37,16 @@ test("login modal: terms gate and form controls", async () => {
     const submitBtn = dialog.querySelector('button[type="submit"]');
     expect(submitBtn).toBeDisabled();
 
-    await user.click(
-        screen.getByRole("checkbox", { name: "서비스 이용약관 동의" })
-    );
     const emailInput = screen.getByPlaceholderText("team@example.com");
     await user.type(emailInput, "user@test.com");
     const passwordInput = screen.getByPlaceholderText("••••••••");
     await user.type(passwordInput, "password123");
 
     expect(submitBtn).toBeEnabled();
+
+    expect(
+        screen.getByText("계속하면 이용약관에 동의하는 것으로 간주합니다.")
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "로그인 창 닫기" }));
     expect(

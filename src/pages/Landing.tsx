@@ -100,7 +100,6 @@ export default function Landing() {
     const [isLoginOpen, setIsLoginOpen] = useState(
         () => searchParams.get("imapCredentialsInvalid") === "1"
     );
-    const [hasAgreedToTerms, setHasAgreedToTerms] = useState(false);
     const [account, setAccount] = useState("");
     const [password, setPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,10 +116,7 @@ export default function Landing() {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const canSubmit =
-        hasAgreedToTerms &&
-        account.trim().length > 0 &&
-        password.length > 0 &&
-        !isSubmitting;
+        account.trim().length > 0 && password.length > 0 && !isSubmitting;
 
     const handleLogin = async () => {
         if (!canSubmit) return;
@@ -469,23 +465,10 @@ export default function Landing() {
                                         <span>{loginError}</span>
                                     </div>
                                 ) : null}
-                                <label className="mt-5 flex cursor-pointer items-center gap-3 text-sm">
-                                    <input
-                                        aria-label="서비스 이용약관 동의"
-                                        checked={hasAgreedToTerms}
-                                        className="checkbox checkbox-primary checkbox-sm"
-                                        onChange={(event) =>
-                                            setHasAgreedToTerms(
-                                                event.currentTarget.checked
-                                            )
-                                        }
-                                        type="checkbox"
-                                    />
-                                    <span>
-                                        서비스 이용약관 및 개인정보 처리방침에
-                                        동의합니다. (필수)
-                                    </span>
-                                </label>
+                                <p className="mt-5 text-xs text-base-content/60">
+                                    계속하면 이용약관에 동의하는 것으로
+                                    간주합니다.
+                                </p>
                                 <div className="modal-action mt-7 flex-col sm:flex-row">
                                     <button
                                         className="btn btn-ghost order-2 sm:order-1"
