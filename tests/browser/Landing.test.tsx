@@ -37,7 +37,7 @@ test("login modal: email+password enables submit button", async () => {
     const submitBtn = dialog.querySelector('button[type="submit"]');
     expect(submitBtn).toBeDisabled();
 
-    const emailInput = screen.getByPlaceholderText("510130340");
+    const emailInput = screen.getByPlaceholderText("학번");
     await user.type(emailInput, "510130340");
     const passwordInput = screen.getByPlaceholderText("••••••••");
     await user.type(passwordInput, "password123");

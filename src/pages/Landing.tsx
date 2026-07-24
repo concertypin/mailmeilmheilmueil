@@ -440,7 +440,7 @@ export default function Landing() {
                                                             .value
                                                     );
                                                 }}
-                                                placeholder="510130340"
+                                                placeholder="학번"
                                                 type="text"
                                                 value={account}
                                             />
