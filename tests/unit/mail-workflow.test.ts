@@ -1144,3 +1144,36 @@ describe("POST /api/mails/:id/flag — flag mail as important", () => {
         expect(response.status).toBe(400);
     });
 });
+
+describe("POST /api/mails/:id/retry-analysis", () => {
+    it("returns 500 for unknown mail (processMailItem throws)", async () => {
+        const repository = new FakeRepository();
+        repository.get = () => Promise.resolve(null);
+        const routes = createRoutes({
+            repository,
+            analyzer: () => Promise.resolve(analysis),
+        });
+        const response = await routes.request(
+            "/api/mails/unknown/retry-analysis",
+            { method: "POST" }
+        );
+        expect(response.status).toBe(500);
+    });
+
+    it("retries analysis on a failed mail", async () => {
+        const repository = new FakeRepository(sampleItem("failed"));
+        const routes = createRoutes({
+            repository,
+            analyzer: () => Promise.resolve(analysis),
+        });
+        const response = await routes.request(
+            "/api/mails/mail-1/retry-analysis",
+            { method: "POST" }
+        );
+        expect(response.status).toBe(200);
+        expect(JSON.parse(await response.text())).toHaveProperty(
+            "status",
+            "ready"
+        );
+    });
+});

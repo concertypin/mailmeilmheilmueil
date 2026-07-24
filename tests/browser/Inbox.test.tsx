@@ -49,6 +49,23 @@ test("shows mail search and draft creation controls", async () => {
     expect(screen.getByRole("heading", { name: "발송대기함" })).toBeVisible();
 });
 
+test("shows sent mailbox with sent status items", async () => {
+    vi.stubGlobal("localStorage", createMockLocalStorage());
+    const user = userEvent.setup();
+    const { hook, searchHook } = memoryLocation({ path: "/inbox" });
+    render(
+        <MailDataProvider source={fakeMailSource}>
+            <Router hook={hook} searchHook={searchHook}>
+                <App>
+                    <Home />
+                </App>
+            </Router>
+        </MailDataProvider>
+    );
+    await user.click(screen.getByRole("button", { name: /보낸메일함/ }));
+    expect(screen.getByRole("heading", { name: "보낸메일함" })).toBeVisible();
+});
+
 test("opens the AI filter panel and resets filters", async () => {
     vi.stubGlobal("localStorage", createMockLocalStorage());
     const user = userEvent.setup();
