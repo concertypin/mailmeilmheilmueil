@@ -109,16 +109,6 @@ export function imapOptionsFromEnv(
     };
 }
 
-export function createImapClient(credentials: ImapCredentials): ImapClient {
-    const options: ImapFlowOptions = {
-        ...imapOptionsFromEnv(),
-        auth: { user: credentials.account, pass: credentials.password },
-    };
-    const client = new ImapFlow(options);
-    client.on("error", () => undefined);
-    return client;
-}
-
 export function isAuthenticationFailure(error: unknown): boolean {
     return (
         typeof error === "object" &&
@@ -134,6 +124,30 @@ async function closeClient(client: ImapClient): Promise<void> {
     } catch {
         client.close();
     }
+}
+/**
+ * SensMail advertises ID capability but hangs when you send the ID command.
+ * The fix is inlined in createImapClient — skip ID via client.run override.
+ */
+
+export function createImapClient(credentials: ImapCredentials): ImapClient {
+    const options: ImapFlowOptions = {
+        ...imapOptionsFromEnv(),
+        auth: { user: credentials.account, pass: credentials.password },
+    };
+    const client: ImapFlow & {
+        run?: (command: string, ...args: unknown[]) => Promise<unknown>;
+    } = new ImapFlow(options);
+    client.on("error", () => undefined);
+    // SensMail advertises ID capability but hangs on ID command
+    const origRun = client.run?.bind(client);
+    if (origRun) {
+        client.run = async (command: string, ...args: unknown[]) => {
+            if (command === "ID") return undefined;
+            return origRun(command, ...args);
+        };
+    }
+    return client;
 }
 
 function validInternalDate(
