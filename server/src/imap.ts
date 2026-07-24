@@ -119,11 +119,12 @@ export function createImapClient(credentials: ImapCredentials): ImapClient {
     return client;
 }
 
-function isAuthenticationFailure(error: unknown): boolean {
+export function isAuthenticationFailure(error: unknown): boolean {
     return (
         typeof error === "object" &&
         error !== null &&
-        Reflect.get(error, "authenticationFailed") === true
+        "authenticationFailed" in error &&
+        error.authenticationFailed === true
     );
 }
 

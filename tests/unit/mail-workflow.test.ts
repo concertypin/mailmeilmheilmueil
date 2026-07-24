@@ -779,7 +779,9 @@ describe("mail list and get routes", () => {
 });
 
 describe("POST /api/login — Basic auth", () => {
-    const routes = createRoutes();
+    const routes = createRoutes({
+        testCredentials: async () => {},
+    });
 
     it("returns 204 for valid Basic credentials", async () => {
         const encoded = Buffer.from("user@example.com:secret").toString(

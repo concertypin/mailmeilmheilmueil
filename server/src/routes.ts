@@ -10,6 +10,9 @@ import { firestoreRepository, type MailRepository } from "./repository";
 import { parseImapBasicAuthorization } from "./basic-auth";
 import {
     syncInbox,
+    createImapClient,
+    isAuthenticationFailure,
+    ImapConfigurationError,
     ImapCredentialError,
     ImapUnavailableError,
     type ImapCredentials,
@@ -21,16 +24,29 @@ export type SyncFn = (
     repository: MailRepository
 ) => Promise<ImapSyncResult>;
 
+export type TestCredentialsFn = (credentials: ImapCredentials) => Promise<void>;
+
 export type RouteDependencies = {
     repository?: MailRepository;
     sync?: SyncFn;
+    testCredentials?: TestCredentialsFn;
 };
 
+async function defaultTestCredentials(
+    credentials: ImapCredentials
+): Promise<void> {
+    const client = createImapClient(credentials);
+    try {
+        await client.connect();
+    } finally {
+        await client.logout();
+    }
+}
 export function createRoutes(dependencies: RouteDependencies = {}) {
     const repository = dependencies.repository ?? firestoreRepository;
     return new Hono()
         .get("/healthz", (context) => context.json({ status: "ok" }))
-        .post("/api/login", (context) => {
+        .post("/api/login", async (context) => {
             const credentials = parseImapBasicAuthorization(
                 context.req.header("authorization")
             );
@@ -41,7 +57,30 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                     { "WWW-Authenticate": 'Basic realm="IMAP"' }
                 );
             }
-            return context.body(null, 204);
+            try {
+                const test =
+                    dependencies.testCredentials ?? defaultTestCredentials;
+                await test(credentials);
+                return context.body(null, 204);
+            } catch (error: unknown) {
+                if (error instanceof ImapConfigurationError) {
+                    return context.json(
+                        { error: "IMAP server is not configured" },
+                        500
+                    );
+                }
+                if (isAuthenticationFailure(error)) {
+                    return context.json(
+                        { error: "IMAP credentials are invalid" },
+                        401,
+                        { "WWW-Authenticate": 'Basic realm="IMAP"' }
+                    );
+                }
+                return context.json(
+                    { error: "IMAP server is unavailable" },
+                    502
+                );
+            }
         })
         .post("/api/sync", async (context) => {
             const credentials = parseImapBasicAuthorization(

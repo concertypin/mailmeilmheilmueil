@@ -117,9 +117,9 @@ export default function Landing() {
 
     const canSubmit =
         account.trim().length > 0 && password.length > 0 && !isSubmitting;
-
     const handleLogin = async () => {
         if (!canSubmit) return;
+        setShowInvalidAlert(false);
         setIsSubmitting(true);
         setLoginError(null);
 
