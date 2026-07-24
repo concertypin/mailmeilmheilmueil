@@ -17,6 +17,7 @@ export type MailUpdate = Partial<
         | "analysis"
         | "isImportant"
         | "draft"
+        | "images"
     >
 >;
 export interface MailRepository {

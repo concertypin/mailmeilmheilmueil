@@ -51,6 +51,7 @@ function parsedMail(email: Email, receivedAt: Timestamp): Omit<MailItem, "id"> {
         failureMessage: null,
         analysis: null,
         draft: null,
+        images: undefined,
     };
 }
 async function parseEmail(raw: Buffer): Promise<Email> {
@@ -98,5 +99,11 @@ export async function parseMailSource(
         );
     }
     const item = parsedMail(email, receivedAt);
+    if (images.length > 0) {
+        item.images = images.map((img) => ({
+            data: Buffer.from(img.data).toString("base64"),
+            mediaType: img.mediaType,
+        }));
+    }
     return { item, images };
 }

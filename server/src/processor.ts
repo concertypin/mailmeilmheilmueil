@@ -1,24 +1,18 @@
 import { type MailAnalysis, type MailItem } from "../../src/lib/mail-schema";
 import { firestoreRepository, now, type MailRepository } from "./repository";
 import { analyzeMail, generateDraft } from "./analysis";
-import type { MailImage } from "./mail-parser";
 
-export type MailAnalyzer = (
-    item: MailItem,
-    images: readonly MailImage[]
-) => Promise<MailAnalysis>;
+export type MailAnalyzer = (item: MailItem) => Promise<MailAnalysis>;
 
 export type DraftGenerator = (item: MailItem, analysis: MailAnalysis) => string;
 
 export const AI_FAILURE_MESSAGE =
     "AI 분석에 실패했습니다. 테스트 메일을 다시 보내 주세요.";
 
-/** Process one queued mail: analyze → generate draft → update repository. */
 export async function processMailItem(
     id: string,
     repository: MailRepository = firestoreRepository,
     analyzer: MailAnalyzer = analyzeMail,
-    images: readonly MailImage[] = [],
     draftGenerator: DraftGenerator = generateDraft
 ): Promise<"ready" | "failed"> {
     const item = await repository.get(id);
@@ -28,7 +22,7 @@ export async function processMailItem(
 
     await repository.update(id, { status: "processing", failureMessage: null });
     try {
-        const analysis = await analyzer(item, images);
+        const analysis = await analyzer(item);
         await repository.update(id, {
             analysis,
             processedAt: now(),

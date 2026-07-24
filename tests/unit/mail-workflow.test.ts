@@ -6,7 +6,7 @@ import {
     MailApiItemSchema,
     type MailItem,
 } from "@/lib/mail-schema";
-import { parseMailSource, type MailImage } from "@server/mail-parser";
+import { parseMailSource } from "@server/mail-parser";
 import { processMailItem, type MailAnalyzer } from "@server/processor";
 import type { MailRepository, MailUpdate } from "@server/repository";
 import { createRoutes } from "@server/routes";
@@ -52,6 +52,7 @@ function sampleItem(status: MailItem["status"] = "queued"): MailItem {
         reviewedAt: null,
         failureMessage: null,
         analysis: status === "ready" || status === "reviewed" ? analysis : null,
+        images: undefined,
         draft: null,
     };
 }
@@ -346,6 +347,9 @@ describe("mail parsing and processing", () => {
         );
         const { item, images } = await parseMailSource(imageOnlyRaw);
         expect(item.textBody).toBe("");
+        expect(item.images).toHaveLength(1);
+        expect(item.images![0]!.data).toBe(pngBase64);
+        expect(item.images![0]!.mediaType).toBe("image/png");
         expect(item.subject).toBe("Image-only promo");
         expect(item.senderAddress).toBe("sender@example.invalid");
         expect(images).toHaveLength(1);
@@ -560,10 +564,9 @@ describe("IMAP synchronization", () => {
         expect(client.flagCalls).toEqual([]);
     });
 
-    it("imports an image-only message and passes images to the analyzer", async () => {
+    it("imports an image-only message and stores images in the item", async () => {
         const pngBase64 =
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-        const pngBytes = Buffer.from(pngBase64, "base64");
         const imageOnlyRaw = Buffer.from(
             [
                 "From: sender@example.invalid",
@@ -581,35 +584,26 @@ describe("IMAP synchronization", () => {
                 "--==BOUNDARY==--",
             ].join("\r\n")
         );
-
         const client = new FakeImapClient([
             { seq: 901, uid: 901, source: imageOnlyRaw },
         ]);
         const repository = new SyncRepository();
-        let capturedImages: readonly MailImage[] = [];
         const result = await syncInbox(
             { account: "inbox@example.invalid", password: "secret" },
             repository,
-            (_item, images) => {
-                capturedImages = images;
-                return Promise.resolve(analysis);
-            },
+            () => Promise.resolve(analysis),
             () => client
         );
-
         expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
-        expect(capturedImages).toHaveLength(1);
-        expect(capturedImages[0]!.mediaType).toBe("image/png");
-        expect(new Uint8Array(capturedImages[0]!.data)).toEqual(
-            new Uint8Array(pngBytes)
-        );
         const stored = repository.items.get("mail-1");
         expect(stored?.status).toBe("ready");
         expect(stored?.textBody).toBe("");
+        expect(stored?.images).toHaveLength(1);
+        expect(stored?.images![0]!.data).toBe(pngBase64);
+        expect(stored?.images![0]!.mediaType).toBe("image/png");
         expect(stored?.analysis).toEqual(analysis);
     });
 });
-
 describe("Heroku Scheduler sync configuration", () => {
     it("passes the configured mailbox credentials to the sync runner", async () => {
         let received: { account: string; password: string } | undefined;

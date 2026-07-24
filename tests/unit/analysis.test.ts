@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach, assert } from "vitest";
 import type { MailAnalysis, MailItem } from "@/lib/mail-schema";
-import type { MailImage } from "@server/mail-parser";
 
 const { mockGenerateText } = vi.hoisted(() => ({
     mockGenerateText: vi.fn(),
@@ -54,9 +53,14 @@ function sampleMailItem(overrides?: Partial<MailItem>): MailItem {
         failureMessage: null,
         analysis: null,
         draft: null,
+        images: undefined,
         ...overrides,
     };
 }
+
+const pngBase64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+const pngBytes = new Uint8Array(Buffer.from(pngBase64, "base64"));
 
 describe("analyzeMail", () => {
     beforeEach(() => {
@@ -78,17 +82,14 @@ describe("analyzeMail", () => {
         expect(typeof callArg.prompt).toBe("string");
     });
 
-    it("includes binary file parts when images are supplied", async () => {
-        const item = sampleMailItem({ textBody: "" });
-        const pngBytes = new Uint8Array([
-            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-        ]);
-        const images: MailImage[] = [
-            { data: pngBytes, mediaType: "image/png" },
-        ];
+    it("includes image parts when item has images", async () => {
+        const item = sampleMailItem({
+            textBody: "",
+            images: [{ data: pngBase64, mediaType: "image/png" }],
+        });
         mockGenerateText.mockResolvedValueOnce({ output: sampleAnalysis });
 
-        const result = await analyzeMail(item, images);
+        const result = await analyzeMail(item);
 
         expect(result).toEqual(sampleAnalysis);
         expect(mockGenerateText).toHaveBeenCalledTimes(1);
@@ -108,32 +109,38 @@ describe("analyzeMail", () => {
             type: "image",
             mimeType: "image/png",
         });
+        // image is a Buffer decoded from base64 — compare bytes
         if (
             content[1] &&
             typeof content[1] === "object" &&
             "image" in content[1]
         ) {
-            expect(content[1].image).toBe(pngBytes);
+            const decoded = content[1].image as Uint8Array;
+            expect(new Uint8Array(decoded)).toEqual(pngBytes);
         }
     });
 
-    it("rejects image-only mail retried without images", async () => {
-        const item = sampleMailItem({ textBody: "", htmlBody: undefined });
+    it("rejects image-only mail with no images stored", async () => {
+        const item = sampleMailItem({
+            textBody: "",
+            htmlBody: undefined,
+            images: undefined,
+        });
 
-        await expect(analyzeMail(item, [])).rejects.toThrow(
+        await expect(analyzeMail(item)).rejects.toThrow(
             "Image-only mail must be retried by synchronizing the inbox"
         );
         expect(mockGenerateText).not.toHaveBeenCalled();
     });
 
     it("still works with text body and images (mixed content)", async () => {
-        const item = sampleMailItem({ textBody: "Hello" });
-        const images: MailImage[] = [
-            { data: new Uint8Array(4), mediaType: "image/jpeg" },
-        ];
+        const item = sampleMailItem({
+            textBody: "Hello",
+            images: [{ data: pngBase64, mediaType: "image/jpeg" }],
+        });
         mockGenerateText.mockResolvedValueOnce({ output: sampleAnalysis });
 
-        const result = await analyzeMail(item, images);
+        const result = await analyzeMail(item);
 
         expect(result).toEqual(sampleAnalysis);
         expect(mockGenerateText).toHaveBeenCalledTimes(1);

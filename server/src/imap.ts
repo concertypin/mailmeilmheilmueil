@@ -225,12 +225,7 @@ export async function syncInbox(
             if (inserted.created) {
                 result.imported += 1;
                 try {
-                    await processMailItem(
-                        inserted.id,
-                        repository,
-                        analyzer,
-                        source.images
-                    );
+                    await processMailItem(inserted.id, repository, analyzer);
                 } catch {
                     /* AI analysis failure is non-fatal */
                 }
@@ -242,8 +237,7 @@ export async function syncInbox(
                         await processMailItem(
                             inserted.id,
                             repository,
-                            analyzer,
-                            source.images
+                            analyzer
                         );
                     } catch {
                         /* retry AI analysis failure is non-fatal */

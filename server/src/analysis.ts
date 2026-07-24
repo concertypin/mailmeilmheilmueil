@@ -6,7 +6,6 @@ import {
     type MailAnalysis,
     type MailItem,
 } from "../../src/lib/mail-schema";
-import type { MailImage } from "./mail-parser";
 
 export type AnalysisEnvironment = Record<string, string | undefined>;
 export type AnalysisProvider = "codex" | "openai";
@@ -114,10 +113,7 @@ Keep the tone warm and professional, suitable for a Korean university announceme
 Respond in Korean with the revised draft only.`;
 
 /** Analyze one stored mail — structured extraction. Supports image-only mail via multimodal file parts. */
-export async function analyzeMail(
-    item: MailItem,
-    images: readonly MailImage[] = []
-): Promise<MailAnalysis> {
+export async function analyzeMail(item: MailItem): Promise<MailAnalysis> {
     const model = pickModel(config.analysisModel);
     const text = [
         "<untrusted-mail>",
@@ -132,17 +128,18 @@ export async function analyzeMail(
         .filter(Boolean)
         .join("\n");
 
-    // When no text content exists, images must be provided
+    const storedImages = item.images ?? [];
     if (
         !item.textBody?.trim() &&
         !item.htmlBody?.trim() &&
-        images.length === 0
+        storedImages.length === 0
     ) {
         throw new Error(
             "Image-only mail must be retried by synchronizing the inbox"
         );
     }
-    if (images.length > 0) {
+
+    if (storedImages.length > 0) {
         const result = await generateText({
             model,
             instructions: analysisSystemPrompt,
@@ -151,10 +148,10 @@ export async function analyzeMail(
                     role: "user",
                     content: [
                         { type: "text" as const, text },
-                        ...images.map((image) => ({
+                        ...storedImages.map((img) => ({
                             type: "image" as const,
-                            image: image.data,
-                            mimeType: image.mediaType,
+                            image: Buffer.from(img.data, "base64"),
+                            mimeType: img.mediaType,
                         })),
                     ],
                 },
