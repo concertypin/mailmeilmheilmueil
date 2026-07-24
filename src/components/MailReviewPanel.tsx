@@ -1,17 +1,42 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import {
     DefaultChatTransport,
     lastAssistantMessageIsCompleteWithToolCalls,
 } from "ai";
 import { z } from "zod";
-import { type MailItem } from "@/lib/mail-schema";
-import { useAnalysisCriteria } from "@/lib/analysis-criteria-data";
+import { isMailAnalysisRefusal, type MailItem } from "@/lib/mail-schema";
 
 interface MailReviewPanelProps {
     item: MailItem;
     onReview: (promotionDraft: string) => Promise<void>;
     reviewError?: string | null;
+    onForceAnalysis?: () => Promise<void>;
+    isForceAnalyzing?: boolean;
+    forceAnalysisError?: string | null;
+}
+
+const fieldLabels = [
+    ["audience", "대상"],
+    ["schedule", "일정"],
+    ["applicationDeadline", "신청 마감"],
+    ["benefits", "혜택"],
+    ["applicationMethod", "신청 방법"],
+    ["contactOrReference", "문의·참고"],
+] as const;
+
+function formatAnalysisValue(value: unknown): string {
+    if (value === null || value === undefined || value === "") {
+        return "";
+    }
+    if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+    ) {
+        return String(value);
+    }
+    return JSON.stringify(value) ?? "";
 }
 
 function displayTimestamp(timestamp: MailItem["receivedAt"]): string {
@@ -22,24 +47,25 @@ function lifecycleLabel(status: MailItem["status"]): string {
     const labels: Record<MailItem["status"], string> = {
         queued: "대기 중",
         processing: "분석 중",
-        ready: "검토 대기",
-        failed: "분석 실패",
+        ready: "검토 가능",
         reviewed: "검토 완료",
-        dispatched: "발송 완료",
         sent: "발송 완료",
-    };
+        failed: "실패",
+    } satisfies Record<MailItem["status"], string>;
     return labels[status];
 }
-
 export default function MailReviewPanel({
     item,
     onReview,
     reviewError,
+    onForceAnalysis,
+    isForceAnalyzing = false,
+    forceAnalysisError,
 }: MailReviewPanelProps) {
-    const { fields } = useAnalysisCriteria();
     const isPending = item.status === "queued" || item.status === "processing";
     const analysis = item.analysis;
     const canReview = item.status === "ready";
+    const isRefusal = analysis !== null && isMailAnalysisRefusal(analysis);
     const [promotionDraft, setPromotionDraft] = useState(item.draft ?? "");
     const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
     const [collabInput, setCollabInput] = useState("");
@@ -65,6 +91,11 @@ export default function MailReviewPanel({
             }
         },
     });
+
+    // Sync promotion draft when item changes (e.g. after forced analysis)
+    useEffect(() => {
+        setPromotionDraft(item.draft ?? "");
+    }, [item.draft]);
 
     return (
         <div className="flex min-h-[calc(100dvh-15rem)] flex-col space-y-6">
@@ -128,9 +159,45 @@ export default function MailReviewPanel({
                 </div>
             )}
 
+            {isRefusal && canReview ? (
+                <div className="card border border-warning/40 bg-base-100 shadow-sm">
+                    <div className="card-body">
+                        <div role="alert" className="alert alert-warning">
+                            <span>
+                                AI가 이 메일을 홍보 메일이 아닌 것으로
+                                판단했습니다.
+                            </span>
+                        </div>
+                        {forceAnalysisError ? (
+                            <div
+                                role="alert"
+                                className="alert alert-error mt-2"
+                            >
+                                <span>{forceAnalysisError}</span>
+                            </div>
+                        ) : null}
+                        <button
+                            className="btn btn-warning mt-4"
+                            disabled={isForceAnalyzing}
+                            onClick={() => void onForceAnalysis?.()}
+                            type="button"
+                        >
+                            {isForceAnalyzing ? (
+                                <>
+                                    <span className="loading loading-spinner" />
+                                    분석 중...
+                                </>
+                            ) : (
+                                "강제 분석하여 초안 생성"
+                            )}
+                        </button>
+                    </div>
+                </div>
+            ) : null}
+
             <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
                 <div className="flex flex-col space-y-6">
-                    {analysis ? (
+                    {analysis && !isRefusal ? (
                         <section className="card border border-base-300 bg-base-100 shadow-sm">
                             <div className="card-body gap-0 p-0">
                                 <button
@@ -157,41 +224,33 @@ export default function MailReviewPanel({
                                 </button>
                                 {isAnalysisOpen ? (
                                     <div className="border-t border-base-300 p-6">
-                                        {(() => {
-                                            const categoryField = fields.find(
-                                                (f) => f.isCategory
-                                            );
-                                            const categoryValue =
-                                                categoryField &&
-                                                analysis[categoryField.key];
-                                            return categoryValue ? (
-                                                <div className="mb-5">
-                                                    <span className="badge badge-secondary">
-                                                        {typeof categoryValue ===
-                                                        "string"
-                                                            ? categoryValue
-                                                            : null}
-                                                    </span>
-                                                </div>
-                                            ) : null;
-                                        })()}
+                                        <div className="mb-5">
+                                            <span className="badge badge-secondary">
+                                                {formatAnalysisValue(
+                                                    analysis.category
+                                                )}
+                                            </span>
+                                        </div>
                                         <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2">
-                                            {fields.map((field) => {
-                                                const value =
-                                                    analysis[field.key];
+                                            {fieldLabels.map(([key, label]) => {
+                                                const value = analysis[key];
                                                 return (
-                                                    <div key={field.key}>
+                                                    <div key={key}>
                                                         <dt className="font-semibold">
-                                                            {field.label}
+                                                            {label}
                                                         </dt>
                                                         <dd className="mt-1 text-base-content/70">
-                                                            {typeof value ===
-                                                            "string" ? (
-                                                                value
-                                                            ) : (
+                                                            {value === null ||
+                                                            value ===
+                                                                undefined ||
+                                                            value === "" ? (
                                                                 <span className="text-warning">
                                                                     확인 필요
                                                                 </span>
+                                                            ) : (
+                                                                formatAnalysisValue(
+                                                                    value
+                                                                )
                                                             )}
                                                         </dd>
                                                     </div>
@@ -241,7 +300,7 @@ export default function MailReviewPanel({
                             </div>
                         </section>
 
-                        {analysis ? (
+                        {analysis && !isRefusal ? (
                             <section className="card h-full border border-primary/30 bg-base-100 shadow-sm">
                                 <div className="card-body h-full">
                                     <h2 className="card-title">
@@ -296,7 +355,7 @@ export default function MailReviewPanel({
                     </div>
                 </div>
 
-                {analysis ? (
+                {analysis && !isRefusal ? (
                     <aside className="card h-fit self-start border border-base-300 bg-base-100 shadow-sm xl:sticky xl:top-24">
                         <div className="card-body gap-0 p-0">
                             <div className="border-b border-base-300 p-5">

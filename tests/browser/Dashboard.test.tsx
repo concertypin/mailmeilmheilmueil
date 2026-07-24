@@ -160,6 +160,7 @@ function createNeverResolvingSource(): MailDataSource {
         list: () => new Promise(() => {}), // never resolves
         get: () => new Promise(() => {}),
         review: () => new Promise(() => {}),
+        forceAnalysis: () => Promise.reject(new Error("not implemented")),
     };
 }
 
@@ -169,6 +170,7 @@ function createRejectingSource(errorMessage: string): MailDataSource {
         list: () => Promise.reject(new Error(errorMessage)),
         get: () => Promise.reject(new Error(errorMessage)),
         review: () => Promise.reject(new Error(errorMessage)),
+        forceAnalysis: () => Promise.reject(new Error("not implemented")),
     };
 }
 
@@ -196,6 +198,7 @@ test("shows seven-item fixture with correct dashboard counts", () => {
                 reviewedAt: Timestamp.now(),
                 draft: draft.trim(),
             }),
+        forceAnalysis: () => Promise.reject(new Error("not implemented")),
     };
     const { hook, searchHook } = memoryLocation({ path: "/dashboard" });
     render(
@@ -228,6 +231,7 @@ test("clicking review link navigates to /inbox?folder=review", async () => {
                 reviewedAt: Timestamp.now(),
                 draft: draft.trim(),
             }),
+        forceAnalysis: () => Promise.reject(new Error("not implemented")),
     };
     const { hook, searchHook } = memoryLocation({ path: "/dashboard" });
     render(
@@ -282,6 +286,7 @@ test("shows empty state with zero counts when no items", () => {
         list: () => Promise.resolve([]),
         get: () => Promise.resolve(null),
         review: () => Promise.reject(new Error("no items")),
+        forceAnalysis: () => Promise.reject(new Error("not implemented")),
     };
     const { hook, searchHook } = memoryLocation({ path: "/dashboard" });
     render(

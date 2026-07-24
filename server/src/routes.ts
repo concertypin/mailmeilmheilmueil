@@ -1,14 +1,20 @@
 import { z } from "zod";
 import { Hono } from "hono";
-import { convertToModelMessages, streamText, tool } from "ai";
+import {
+    convertToModelMessages,
+    createUIMessageStreamResponse,
+    streamText,
+    toUIMessageStream,
+    tool,
+} from "ai";
 import { Timestamp } from "firebase-admin/firestore";
 import {
     AnalysisCriteriaSchema,
     ComposeRequestSchema,
     FlagMailRequestSchema,
+    isMailAnalysisRefusal,
     resolveAnalysisFields,
     ReviewMailRequestSchema,
-    SendReviewedMailRequestSchema,
     toMailApiItem,
 } from "../../src/lib/mail-schema";
 import { firestoreRepository, type MailRepository } from "./repository";
@@ -18,10 +24,7 @@ import {
 } from "./criteria";
 import { analyzeMail, collabModelConfig, pickModel } from "./analysis";
 import { processMailItem, type MailAnalyzer } from "./processor";
-import {
-    parseImapBasicAuthorization,
-    parseImapCredentialsFromRequest,
-} from "./basic-auth";
+import { parseImapCredentialsFromRequest } from "./basic-auth";
 import {
     createImapClient,
     isAuthenticationFailure,
@@ -289,6 +292,12 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                     409
                 );
             }
+            if (isMailAnalysisRefusal(item.analysis)) {
+                return context.json(
+                    { error: "Refused mail cannot be reviewed" },
+                    409
+                );
+            }
 
             const reviewedAt = Timestamp.now();
             await repository.update(id, {
@@ -403,95 +412,6 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
         })
 
-        .post("/api/mails/:id/send", async (context) => {
-            const credentials = parseImapBasicAuthorization(
-                context.req.header("authorization")
-            );
-            if (!credentials) {
-                return context.json(
-                    { error: "IMAP credentials are required" },
-                    401,
-                    { "WWW-Authenticate": 'Basic realm="IMAP"' }
-                );
-            }
-
-            const id = context.req.param("id");
-            let body: unknown;
-            try {
-                body = await context.req.json();
-            } catch {
-                return context.json({ error: "Invalid JSON body" }, 400);
-            }
-
-            const parsed = SendReviewedMailRequestSchema.safeParse(body);
-            if (!parsed.success) {
-                return context.json(
-                    {
-                        error: "bcc array with at least one recipient is required",
-                    },
-                    400
-                );
-            }
-
-            const item = await repository.get(id);
-            if (!item) {
-                return context.json({ error: "Mail not found" }, 404);
-            }
-
-            if (item.status !== "reviewed" && item.status !== "dispatched") {
-                return context.json(
-                    { error: "Mail is not eligible for send" },
-                    409
-                );
-            }
-
-            if (!item.draft) {
-                return context.json(
-                    { error: "Mail has no promotion draft" },
-                    409
-                );
-            }
-
-            const now = Timestamp.now();
-            const { id: sentId } = await repository.createIfAbsent(
-                {
-                    senderName: credentials.account,
-                    senderAddress: credentials.account,
-                    recipients: [],
-                    bcc: parsed.data.bcc,
-                    subject: item.subject,
-                    textBody: item.draft,
-                    receivedAt: now,
-                    externalMessageId: null,
-                    status: "sent" as const,
-                    processedAt: null,
-                    reviewedAt: null,
-                    failureMessage: null,
-                    analysis: null,
-                    draft: null,
-                },
-                `reviewed-mail-send:${id}`
-            );
-
-            if (item.status === "reviewed") {
-                await repository.update(id, { status: "dispatched" });
-            }
-
-            const source = await repository.get(id);
-            const sent = await repository.get(sentId);
-            if (!source || !sent) {
-                return context.json({ error: "Failed to finalize send" }, 500);
-            }
-
-            return context.json(
-                {
-                    source: toMailApiItem(source),
-                    sent: toMailApiItem(sent),
-                },
-                201
-            );
-        })
-
         .post("/api/mails/:id/retry-analysis", async (context) => {
             const id = context.req.param("id");
             const credentials = parseImapCredentialsFromRequest(
@@ -521,6 +441,67 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 }
                 return context.json(
                     { status: result, mail: toMailApiItem(item) },
+                    result === "ready" ? 200 : 500
+                );
+            } catch (error: unknown) {
+                return context.json(
+                    {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : "Analysis failed",
+                    },
+                    500
+                );
+            }
+        })
+        .post("/api/mails/:id/force-analysis", async (context) => {
+            const id = context.req.param("id");
+            const item = await repository.get(id);
+            if (!item) {
+                return context.json({ error: "Mail not found" }, 404);
+            }
+            if (item.status !== "ready") {
+                return context.json(
+                    { error: "Mail is not ready for forced analysis" },
+                    409
+                );
+            }
+            if (!item.analysis || !isMailAnalysisRefusal(item.analysis)) {
+                return context.json(
+                    { error: "Only refused mail can be force-analyzed" },
+                    409
+                );
+            }
+
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization")
+            );
+            if (!credentials) {
+                return context.json(
+                    { error: "IMAP credentials are required" },
+                    401,
+                    { "WWW-Authenticate": 'Basic realm="IMAP"' }
+                );
+            }
+
+            try {
+                const criteria = await criteriaRepository.get(
+                    credentials.account
+                );
+                const fields = resolveAnalysisFields(criteria);
+                const analyzer: MailAnalyzer =
+                    dependencies.analyzer ?? analyzeMail;
+                const result = await processMailItem(id, repository, {
+                    fields,
+                    analyzer,
+                });
+                const updated = await repository.get(id);
+                if (!updated) {
+                    return context.json({ error: "Mail not found" }, 404);
+                }
+                return context.json(
+                    { status: result, mail: toMailApiItem(updated) },
                     result === "ready" ? 200 : 500
                 );
             } catch (error: unknown) {
@@ -587,8 +568,11 @@ ${currentDraft ?? "아직 생성된 초안이 없습니다. 분석 결과를 바
                     }),
                 },
             });
-            // oxlint-disable-next-line typescript/no-deprecated
-            return result.toUIMessageStreamResponse();
+            return createUIMessageStreamResponse({
+                stream: toUIMessageStream({
+                    stream: result.stream,
+                }),
+            });
         });
 }
 

@@ -8,12 +8,8 @@ import {
     useRef,
     useState,
 } from "react";
-import {
-    fromMailApiItem,
-    MailApiItemSchema,
-    SendReviewedMailResponseSchema,
-    type MailItem,
-} from "@/lib/mail-schema";
+import type { MailItem } from "@/lib/mail-schema";
+import { fromMailApiItem, MailApiItemSchema } from "@/lib/mail-schema";
 import {
     buildImapHeaders,
     loadImapBasicCredentials,
@@ -25,11 +21,7 @@ export interface MailDataSource {
     list(): Promise<MailItem[]>;
     get(id: string): Promise<MailItem | null>;
     review(item: MailItem, promotionDraft: string): Promise<MailItem>;
-    sendReviewed?: (
-        item: MailItem,
-        bcc: string[],
-        authorization: string
-    ) => Promise<{ source: MailItem; sent: MailItem }>;
+    forceAnalysis(item: MailItem): Promise<MailItem>;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -90,27 +82,20 @@ export function createAttachedMailDataSource(
             const raw = MailApiItemSchema.parse(await res.json());
             return fromMailApiItem(raw);
         },
-        async sendReviewed(
-            item: MailItem,
-            bcc: string[],
-            authorization: string
-        ) {
-            const res = await fetchImpl(`/api/mails/${item.id}/send`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    authorization,
-                },
-                body: JSON.stringify({ bcc }),
-            });
+        async forceAnalysis(item: MailItem) {
+            const credentials = loadImapBasicCredentials();
+            const res = await fetchImpl(
+                `/api/mails/${item.id}/force-analysis`,
+                {
+                    method: "POST",
+                    headers: credentials ? buildImapHeaders(credentials) : {},
+                }
+            );
             if (!res.ok) {
                 throw new Error(await parseApiError(res));
             }
-            const raw = SendReviewedMailResponseSchema.parse(await res.json());
-            return {
-                source: fromMailApiItem(raw.source),
-                sent: fromMailApiItem(raw.sent),
-            };
+            const raw = MailApiItemSchema.parse(await res.json());
+            return fromMailApiItem(raw);
         },
     };
 }
@@ -121,21 +106,16 @@ interface MailDataContextValue {
     loadError: string | null;
     get: (id: string) => Promise<MailItem | null>;
     review: (item: MailItem, promotionDraft: string) => Promise<MailItem>;
-    sendReviewed: (
-        item: MailItem,
-        bcc: string[],
-        authorization: string
-    ) => Promise<{ source: MailItem; sent: MailItem }>;
+    forceAnalysis: (item: MailItem) => Promise<MailItem>;
     refresh: () => Promise<void>;
 }
-
 const MailDataContext = createContext<MailDataContextValue>({
     items: null,
-    isLoading: true,
+    isLoading: false,
     loadError: null,
     get: () => Promise.resolve(null),
     review: () => Promise.reject(new Error("MailDataProvider not mounted")),
-    sendReviewed: () =>
+    forceAnalysis: () =>
         Promise.reject(new Error("MailDataProvider not mounted")),
     refresh: () => Promise.reject(new Error("MailDataProvider not mounted")),
 });
@@ -218,9 +198,23 @@ export function MailDataProvider({
         },
         [resolvedSource]
     );
+
     const review = useCallback(
         async (item: MailItem, promotionDraft: string) => {
             const result = await resolvedSource.review(item, promotionDraft);
+            setItems((prev) =>
+                prev
+                    ? prev.map((i) => (i.id === item.id ? result : i))
+                    : [result]
+            );
+            return result;
+        },
+        [resolvedSource]
+    );
+
+    const forceAnalysis = useCallback(
+        async (item: MailItem) => {
+            const result = await resolvedSource.forceAnalysis(item);
             setItems((prev) =>
                 prev
                     ? prev.map((i) => (i.id === item.id ? result : i))
@@ -244,34 +238,6 @@ export function MailDataProvider({
         }
     }, [resolvedSource]);
 
-    const sendReviewed = useCallback(
-        async (item: MailItem, bcc: string[], authorization: string) => {
-            if (!resolvedSource.sendReviewed) {
-                throw new Error(
-                    "This mail data source cannot send reviewed mail."
-                );
-            }
-            const result = await resolvedSource.sendReviewed(
-                item,
-                bcc,
-                authorization
-            );
-            setItems((prev) =>
-                prev
-                    ? prev.map((i) =>
-                          i.id === item.id
-                              ? result.source
-                              : i.id === result.sent.id
-                                ? result.sent
-                                : i
-                      )
-                    : [result.source, result.sent]
-            );
-            return result;
-        },
-        [resolvedSource]
-    );
-
     const value = useMemo<MailDataContextValue>(
         () => ({
             items,
@@ -279,11 +245,12 @@ export function MailDataProvider({
             loadError,
             get,
             review,
-            sendReviewed,
+            forceAnalysis,
             refresh,
         }),
-        [items, isLoading, loadError, get, review, sendReviewed, refresh]
+        [items, isLoading, loadError, get, review, forceAnalysis, refresh]
     );
+
     return (
         <MailDataContext.Provider value={value}>
             {children}

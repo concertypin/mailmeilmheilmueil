@@ -6,8 +6,15 @@ export const mailStatuses = [
     "ready",
     "failed",
     "reviewed",
-    "dispatched",
     "sent",
+] as const;
+
+export const mailCategories = [
+    "채용",
+    "직업훈련",
+    "대외활동",
+    "외부 프로그램",
+    "기타",
 ] as const;
 
 export type MailStatus = (typeof mailStatuses)[number];
@@ -142,6 +149,22 @@ export function resolveAnalysisFields(
     return [...defaults, ...criteria.customFields];
 }
 
+// ── Analysis refusal ─────────────────────────────────────────────────
+
+/** Refusal when mail is not a promotional announcement. */
+export const MailRefusalSchema = z
+    .object({
+        refusal: z.literal("not_a_promotion"),
+        reviewNotes: z.array(z.string()),
+    })
+    .strict();
+export type MailRefusal = z.infer<typeof MailRefusalSchema>;
+export function isMailAnalysisRefusal(
+    analysis: MailAnalysis
+): analysis is MailRefusal {
+    return "refusal" in analysis;
+}
+
 /**
  * Build a strict Zod object for AI structured output containing exactly
  * the supplied field keys (each `string | null`) plus `reviewNotes`.
@@ -268,20 +291,3 @@ export const FlagMailRequestSchema = z.object({
 });
 
 export type FlagMailRequest = z.infer<typeof FlagMailRequestSchema>;
-
-export const SendReviewedMailRequestSchema = z.object({
-    bcc: z.array(z.string().trim().min(1)).min(1),
-});
-
-export type SendReviewedMailRequest = z.infer<
-    typeof SendReviewedMailRequestSchema
->;
-
-export const SendReviewedMailResponseSchema = z.object({
-    source: MailApiItemSchema,
-    sent: MailApiItemSchema,
-});
-
-export type SendReviewedMailResponse = z.infer<
-    typeof SendReviewedMailResponseSchema
->;

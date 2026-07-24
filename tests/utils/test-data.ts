@@ -30,6 +30,23 @@ export const readyItem = {
     draft: "데이터 분석 직무교육 참가자를 모집합니다.",
 } satisfies MailItem;
 
+export const refusedItem = {
+    id: "refused-1",
+    senderName: "내부회계팀",
+    senderAddress: "accounting@example.invalid",
+    recipients: ["staff@example.com"],
+    subject: "8월 회계 정산 일정 안내",
+    textBody: "8월 회계 정산 일정을 아래와 같이 안내드립니다.",
+    receivedAt: Timestamp.now(),
+    externalMessageId: null,
+    status: "ready",
+    processedAt: Timestamp.now(),
+    reviewedAt: null,
+    failureMessage: null,
+    analysis: { refusal: "not_a_promotion", reviewNotes: [] },
+    draft: null,
+} satisfies MailItem;
+
 export const inboxItems: MailItem[] = [
     {
         id: "welcome-mail",
@@ -84,7 +101,6 @@ export const inboxItems: MailItem[] = [
         draft: "현직자 멘토링과 함께하는 데이터 분석 직업훈련 참가자를 모집합니다.",
     },
 ];
-
 export function createFakeMailDataSource(items: MailItem[]): MailDataSource {
     const itemMap = new Map(items.map((i) => [i.id, i]));
     return {
@@ -98,39 +114,12 @@ export function createFakeMailDataSource(items: MailItem[]): MailDataSource {
                 reviewedAt: Timestamp.now(),
                 draft: draft.trim(),
             }),
-        // oxlint-disable-next-line typescript/require-await
-        async sendReviewed(
-            item: MailItem,
-            bcc: string[],
-            _authorization?: string
-        ) {
-            const source = {
-                ...item,
-                status: "dispatched" as const,
-            };
-            itemMap.set(item.id, source);
-            const sentId = `sent-${item.id}`;
-            const sent = {
-                id: sentId,
-                senderName: item.senderName,
-                senderAddress: item.senderAddress,
-                recipients: [],
-                bcc,
-                subject: item.subject,
-                textBody: item.draft ?? "",
-                receivedAt: Timestamp.now(),
-                externalMessageId: null,
-                status: "sent" as const,
-                processedAt: null,
-                reviewedAt: null,
-                failureMessage: null,
-                analysis: null,
-                draft: null,
-            } satisfies MailItem;
-            itemMap.set(sentId, sent);
-            items.push(sent);
-            return { source, sent };
-        },
+        forceAnalysis: () =>
+            Promise.reject(
+                new Error(
+                    "Forced analysis is not configured for this test source"
+                )
+            ),
     };
 }
 

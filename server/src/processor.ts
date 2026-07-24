@@ -1,5 +1,6 @@
 import {
     DEFAULT_ANALYSIS_FIELDS,
+    isMailAnalysisRefusal,
     type AnalysisField,
     type MailAnalysis,
     type MailItem,
@@ -50,14 +51,16 @@ export async function processMailItem(
             status: "ready",
             failureMessage: null,
         });
-        // Generate draft from analysis (sync formatting, no AI)
-        try {
-            const draft = draftGenerator(item, analysis, fields);
-            if (draft) {
-                repository.update(id, { draft }).catch(() => undefined);
+        if (!isMailAnalysisRefusal(analysis)) {
+            // Generate draft from analysis (sync formatting, no AI)
+            try {
+                const draft = draftGenerator(item, analysis, fields);
+                if (draft) {
+                    repository.update(id, { draft }).catch(() => undefined);
+                }
+            } catch {
+                /* draft formatting is best-effort */
             }
-        } catch {
-            /* draft formatting is best-effort */
         }
         return "ready";
     } catch (error: unknown) {
