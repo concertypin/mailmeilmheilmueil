@@ -206,7 +206,7 @@ test("shows seven-item fixture with correct dashboard counts", () => {
         </MailDataProvider>
     );
 
-    expect(screen.getByText("대시보드")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "대시보드" })).toBeVisible();
     expect(screen.getByLabelText("전체 메일: 7개")).toHaveTextContent("7");
     expect(screen.getByLabelText("처리 완료: 4개")).toHaveTextContent("4");
     expect(screen.getByLabelText("리뷰 필요: 2개")).toHaveTextContent("2");
