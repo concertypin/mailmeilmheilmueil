@@ -6,11 +6,7 @@ import {
     type MailItem,
 } from "@/lib/mail-schema";
 import { parseMailSource } from "@server/mail-parser";
-import {
-    AI_FAILURE_MESSAGE,
-    processMailItem,
-    type MailAnalyzer,
-} from "@server/processor";
+import { processMailItem, type MailAnalyzer } from "@server/processor";
 import type { MailRepository, MailUpdate } from "@server/repository";
 import { createRoutes } from "@server/routes";
 import {
@@ -318,7 +314,9 @@ describe("mail parsing and processing", () => {
         expect(repository.item.textBody).toBe(
             "모집 대상: 데이터 분석 직무에 관심 있는 대학생"
         );
-        expect(repository.item.failureMessage).toBe(AI_FAILURE_MESSAGE);
+        expect(repository.item.failureMessage).toBe(
+            "AI 분석 실패: provider unavailable"
+        );
         expect(repository.item.analysis).toBeNull();
     });
 });

@@ -28,12 +28,15 @@ export async function processMailItem(
             failureMessage: null,
         });
         return "ready";
-    } catch (error) {
-        process.stderr.write(`Mail analysis failed: ${String(error)}\n`);
+    } catch (error: unknown) {
+        const message =
+            error instanceof Error
+                ? `AI 분석 실패: ${error.message}`
+                : AI_FAILURE_MESSAGE;
         await repository.update(id, {
             processedAt: now(),
             status: "failed",
-            failureMessage: AI_FAILURE_MESSAGE,
+            failureMessage: message,
         });
         return "failed";
     }
