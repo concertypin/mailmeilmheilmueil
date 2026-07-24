@@ -101,6 +101,9 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 const result = await sync(credentials, repository);
                 return context.json(result);
             } catch (error: unknown) {
+                process.stderr.write(
+                    `Sync failed: ${error instanceof Error ? error.stack : String(error)}\n`
+                );
                 if (error instanceof ImapCredentialError) {
                     return context.json(
                         { error: "IMAP credentials are invalid" },
