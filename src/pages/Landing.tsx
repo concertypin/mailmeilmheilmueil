@@ -139,7 +139,7 @@ export default function Landing() {
                     account: fullAccount,
                     password,
                 });
-                setLocation("/dashboard");
+                setLocation("/inbox");
                 return;
             }
 
@@ -195,7 +195,7 @@ export default function Landing() {
                     ? { secure: parsedData.secure }
                     : {}),
             });
-            setLocation("/dashboard");
+            setLocation("/inbox");
         } catch {
             setLoginError("테스트 계정 로그인에 실패했습니다");
         } finally {

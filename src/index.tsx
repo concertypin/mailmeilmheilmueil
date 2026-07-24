@@ -6,10 +6,9 @@ import { Route, Switch } from "wouter";
 import App from "@/App";
 import { MailDataProvider } from "@/lib/mail-data";
 import { AddressBookProvider } from "@/lib/contact-book-data";
-import Compose from "@/pages/Compose";
-import Contacts from "@/pages/Contacts";
-import Dashboard from "@/pages/Dashboard";
 import Home from "@/pages/Home";
+import Contacts from "@/pages/Contacts";
+import Compose from "@/pages/Compose";
 import Landing from "@/pages/Landing";
 import MailReview from "@/pages/MailReview";
 
@@ -25,11 +24,6 @@ createRoot(root!).render(
             <AddressBookProvider>
                 <Switch>
                     <Route path="/" component={Landing} />
-                    <Route path="/dashboard">
-                        <App>
-                            <Dashboard />
-                        </App>
-                    </Route>
                     <Route path="/inbox">
                         <App>
                             <Home />

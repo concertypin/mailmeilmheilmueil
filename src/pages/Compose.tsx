@@ -157,6 +157,7 @@ export default function Compose() {
 
         try {
             const to = resolved.to.map((c) => c.email);
+            const bcc = resolved.bcc.map((c) => c.email);
             const response = await fetch("/api/compose", {
                 method: "POST",
                 headers: {
