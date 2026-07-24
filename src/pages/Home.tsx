@@ -431,17 +431,146 @@ export default function Home() {
                                         value={searchTerm}
                                     />
                                 </label>
-                                <button
-                                    aria-expanded={isFilterOpen}
-                                    className="btn btn-sm"
-                                    onClick={() =>
-                                        setIsFilterOpen(!isFilterOpen)
-                                    }
-                                    type="button"
-                                >
-                                    <FunnelIcon aria-hidden="true" size={17} />
-                                    필터
-                                </button>
+                                <div className="relative">
+                                    <button
+                                        aria-controls="advanced-mail-filter"
+                                        aria-expanded={isFilterOpen}
+                                        className="btn btn-sm"
+                                        onClick={() =>
+                                            setIsFilterOpen(!isFilterOpen)
+                                        }
+                                        type="button"
+                                    >
+                                        <FunnelIcon
+                                            aria-hidden="true"
+                                            size={17}
+                                        />
+                                        필터
+                                    </button>
+                                    {isFilterOpen ? (
+                                        <div
+                                            id="advanced-mail-filter"
+                                            role="dialog"
+                                            aria-label="고급 필터"
+                                            className="absolute right-0 top-full z-10 mt-2 w-[calc(100vw-2.5rem)] max-w-md border border-base-300 bg-base-200 shadow-sm card"
+                                        >
+                                            <div className="card-body grid gap-5 p-5 sm:grid-cols-2">
+                                                <label className="fieldset">
+                                                    <span className="label">
+                                                        보낸사람
+                                                    </span>
+                                                    <input
+                                                        aria-label="보낸사람"
+                                                        className="input input-sm w-full"
+                                                        onChange={(event) =>
+                                                            setSenderFilter(
+                                                                event
+                                                                    .currentTarget
+                                                                    .value
+                                                            )
+                                                        }
+                                                        placeholder="별칭 또는 메일 주소"
+                                                        type="search"
+                                                        value={senderFilter}
+                                                    />
+                                                </label>
+                                                <fieldset className="fieldset">
+                                                    <legend className="label">
+                                                        수신일
+                                                    </legend>
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            aria-label="수신일 시작일"
+                                                            className="input input-sm min-w-0 flex-1"
+                                                            onChange={(event) =>
+                                                                setDateFrom(
+                                                                    event
+                                                                        .currentTarget
+                                                                        .value
+                                                                )
+                                                            }
+                                                            type="date"
+                                                            value={dateFrom}
+                                                        />
+                                                        <span>–</span>
+                                                        <input
+                                                            aria-label="수신일 종료일"
+                                                            className="input input-sm min-w-0 flex-1"
+                                                            onChange={(event) =>
+                                                                setDateTo(
+                                                                    event
+                                                                        .currentTarget
+                                                                        .value
+                                                                )
+                                                            }
+                                                            type="date"
+                                                            value={dateTo}
+                                                        />
+                                                    </div>
+                                                </fieldset>
+                                                <div className="sm:col-span-2">
+                                                    <label className="fieldset">
+                                                        <span className="label">
+                                                            분류
+                                                        </span>
+                                                        <select
+                                                            aria-label="분류"
+                                                            className="select select-sm w-full"
+                                                            onChange={(event) =>
+                                                                setCategoryFilter(
+                                                                    event
+                                                                        .currentTarget
+                                                                        .value as
+                                                                        | "all"
+                                                                        | MailAnalysis["category"]
+                                                                )
+                                                            }
+                                                            value={
+                                                                categoryFilter
+                                                            }
+                                                        >
+                                                            <option value="all">
+                                                                전체
+                                                            </option>
+                                                            {mailCategories.map(
+                                                                (category) => (
+                                                                    <option
+                                                                        key={
+                                                                            category
+                                                                        }
+                                                                        value={
+                                                                            category
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            category
+                                                                        }
+                                                                    </option>
+                                                                )
+                                                            )}
+                                                        </select>
+                                                    </label>
+                                                </div>
+                                                <div className="card-actions sm:col-span-2 mt-1 items-center justify-end border-t border-base-300 pt-4">
+                                                    <button
+                                                        className="btn btn-ghost btn-sm"
+                                                        onClick={() => {
+                                                            setSenderFilter("");
+                                                            setDateFrom("");
+                                                            setDateTo("");
+                                                            setCategoryFilter(
+                                                                "all"
+                                                            );
+                                                        }}
+                                                        type="button"
+                                                    >
+                                                        필터 초기화
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
                                 <button
                                     className="btn btn-sm"
                                     disabled={isSyncing}
@@ -467,114 +596,6 @@ export default function Home() {
                                 </div>
                             ) : null}
                         </div>
-
-                        {isFilterOpen ? (
-                            <div className="card mt-4 border border-base-300 bg-base-200 shadow-sm">
-                                <div className="card-body grid gap-5 p-5 sm:grid-cols-2 xl:grid-cols-3">
-                                    <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3">
-                                        <h3 className="font-semibold">
-                                            기본 필터
-                                        </h3>
-                                        <span className="text-xs text-base-content/55">
-                                            보낸사람과 수신일
-                                        </span>
-                                    </div>
-                                    <label className="fieldset">
-                                        <span className="label">보낸사람</span>
-                                        <input
-                                            aria-label="보낸사람"
-                                            className="input w-full"
-                                            onChange={(event) =>
-                                                setSenderFilter(
-                                                    event.currentTarget.value
-                                                )
-                                            }
-                                            placeholder="별칭 또는 메일 주소"
-                                            type="search"
-                                            value={senderFilter}
-                                        />
-                                    </label>
-                                    <fieldset className="fieldset">
-                                        <legend className="label">
-                                            수신일
-                                        </legend>
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                aria-label="수신일 시작일"
-                                                className="input min-w-0 flex-1"
-                                                onChange={(event) =>
-                                                    setDateFrom(
-                                                        event.currentTarget
-                                                            .value
-                                                    )
-                                                }
-                                                type="date"
-                                                value={dateFrom}
-                                            />
-                                            <span>–</span>
-                                            <input
-                                                aria-label="수신일 종료일"
-                                                className="input min-w-0 flex-1"
-                                                onChange={(event) =>
-                                                    setDateTo(
-                                                        event.currentTarget
-                                                            .value
-                                                    )
-                                                }
-                                                type="date"
-                                                value={dateTo}
-                                            />
-                                        </div>
-                                    </fieldset>
-                                    <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3 pt-2">
-                                        <h3 className="font-semibold">분류</h3>
-                                    </div>
-                                    <label className="fieldset">
-                                        <select
-                                            aria-label="분류"
-                                            className="select w-full"
-                                            onChange={(event) =>
-                                                setCategoryFilter(
-                                                    event.currentTarget
-                                                        .value as
-                                                        | "all"
-                                                        | MailAnalysis["category"]
-                                                )
-                                            }
-                                            value={categoryFilter}
-                                        >
-                                            <option value="all">전체</option>
-                                            {mailCategories.map((category) => (
-                                                <option
-                                                    key={category}
-                                                    value={category}
-                                                >
-                                                    {category}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-                                    <div className="card-actions col-span-full mt-1 items-center justify-between border-t border-base-300 pt-4">
-                                        <p className="text-sm text-base-content/60">
-                                            검색 결과 {filteredMailItems.length}
-                                            개
-                                        </p>
-                                        <button
-                                            className="btn btn-ghost btn-sm"
-                                            onClick={() => {
-                                                setSenderFilter("");
-                                                setDateFrom("");
-                                                setDateTo("");
-                                                setCategoryFilter("all");
-                                            }}
-                                            type="button"
-                                        >
-                                            필터 초기화
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : null}
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 px-5 py-3 sm:px-8">
