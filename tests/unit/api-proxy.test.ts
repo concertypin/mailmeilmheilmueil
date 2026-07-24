@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAttachedMailDataSource } from "../../src/lib/mail-data";
-
+import { Timestamp } from "firebase/firestore";
+import type { MailItem } from "../../src/lib/mail-schema";
 describe("createAttachedMailDataSource", () => {
     it.concurrent("requests /api/mails and parses the response", async () => {
         const apiResponse = new Response(
@@ -92,3 +93,89 @@ describe("createAttachedMailDataSource", () => {
         expect(result.subject).toBe("Existing item");
     });
 });
+
+it.concurrent(
+    "sendReviewed() requests /api/mails/:id/send and parses the response",
+    async () => {
+        const apiResponse = new Response(
+            JSON.stringify({
+                source: {
+                    id: "reviewed-1",
+                    senderName: "미래직업교육원",
+                    senderAddress: "notice@example.invalid",
+                    recipients: ["promotion@example.invalid"],
+                    subject: "Test subject",
+                    textBody: "Original body",
+                    receivedAt: "2026-07-23T10:00:00.000Z",
+                    processedAt: null,
+                    reviewedAt: "2026-07-23T11:00:00.000Z",
+                    externalMessageId: null,
+                    status: "dispatched",
+                    failureMessage: null,
+                    analysis: null,
+                    draft: "Promotion draft",
+                },
+                sent: {
+                    id: "sent-1",
+                    senderName: "user@kangnam.ac.kr",
+                    senderAddress: "user@kangnam.ac.kr",
+                    recipients: [],
+                    bcc: ["student@example.invalid"],
+                    subject: "Test subject",
+                    textBody: "Promotion draft",
+                    receivedAt: "2026-07-23T12:00:00.000Z",
+                    processedAt: null,
+                    reviewedAt: null,
+                    externalMessageId: null,
+                    status: "sent",
+                    failureMessage: null,
+                    analysis: null,
+                    draft: null,
+                },
+            }),
+            { status: 201, headers: { "Content-Type": "application/json" } }
+        );
+
+        const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(apiResponse);
+        const source = createAttachedMailDataSource(fetchFn);
+
+        const item: MailItem = {
+            id: "reviewed-1",
+            senderName: "미래직업교육원",
+            senderAddress: "notice@example.invalid",
+            recipients: ["promotion@example.invalid"],
+            subject: "Test subject",
+            textBody: "Original body",
+            receivedAt: Timestamp.now(),
+            externalMessageId: null,
+            status: "reviewed",
+            processedAt: null,
+            reviewedAt: Timestamp.now(),
+            failureMessage: null,
+            analysis: null,
+            draft: "Promotion draft",
+        };
+
+        const result = await source.sendReviewed(
+            item,
+            ["student@example.invalid"],
+            "Basic dXNlckBrYW5nbmFtLmFjLmtyOnBhc3N3b3Jk"
+        );
+        expect(fetchFn).toHaveBeenCalledWith(
+            "/api/mails/reviewed-1/send",
+            expect.objectContaining({
+                method: "POST",
+                // oxlint-disable-next-line typescript/no-unsafe-assignment
+                headers: expect.objectContaining({
+                    authorization: "Basic dXNlckBrYW5nbmFtLmFjLmtyOnBhc3N3b3Jk",
+                    "Content-Type": "application/json",
+                }),
+                body: JSON.stringify({ bcc: ["student@example.invalid"] }),
+            })
+        );
+        expect(result.source.status).toBe("dispatched");
+        expect(result.sent.status).toBe("sent");
+        expect(result.sent.textBody).toBe("Promotion draft");
+        expect(result.sent.bcc).toEqual(["student@example.invalid"]);
+    }
+);

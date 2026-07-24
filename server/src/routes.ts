@@ -1,12 +1,6 @@
 import { z } from "zod";
 import { Hono } from "hono";
-import {
-    convertToModelMessages,
-    createUIMessageStreamResponse,
-    streamText,
-    toUIMessageStream,
-    tool,
-} from "ai";
+import { convertToModelMessages, streamText, tool } from "ai";
 import { Timestamp } from "firebase-admin/firestore";
 import {
     AnalysisCriteriaSchema,
@@ -14,6 +8,7 @@ import {
     FlagMailRequestSchema,
     resolveAnalysisFields,
     ReviewMailRequestSchema,
+    SendReviewedMailRequestSchema,
     toMailApiItem,
 } from "../../src/lib/mail-schema";
 import { firestoreRepository, type MailRepository } from "./repository";
@@ -405,6 +400,95 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
         })
 
+        .post("/api/mails/:id/send", async (context) => {
+            const credentials = parseImapBasicAuthorization(
+                context.req.header("authorization")
+            );
+            if (!credentials) {
+                return context.json(
+                    { error: "IMAP credentials are required" },
+                    401,
+                    { "WWW-Authenticate": 'Basic realm="IMAP"' }
+                );
+            }
+
+            const id = context.req.param("id");
+            let body: unknown;
+            try {
+                body = await context.req.json();
+            } catch {
+                return context.json({ error: "Invalid JSON body" }, 400);
+            }
+
+            const parsed = SendReviewedMailRequestSchema.safeParse(body);
+            if (!parsed.success) {
+                return context.json(
+                    {
+                        error: "bcc array with at least one recipient is required",
+                    },
+                    400
+                );
+            }
+
+            const item = await repository.get(id);
+            if (!item) {
+                return context.json({ error: "Mail not found" }, 404);
+            }
+
+            if (item.status !== "reviewed" && item.status !== "dispatched") {
+                return context.json(
+                    { error: "Mail is not eligible for send" },
+                    409
+                );
+            }
+
+            if (!item.draft) {
+                return context.json(
+                    { error: "Mail has no promotion draft" },
+                    409
+                );
+            }
+
+            const now = Timestamp.now();
+            const { id: sentId } = await repository.createIfAbsent(
+                {
+                    senderName: credentials.account,
+                    senderAddress: credentials.account,
+                    recipients: [],
+                    bcc: parsed.data.bcc,
+                    subject: item.subject,
+                    textBody: item.draft,
+                    receivedAt: now,
+                    externalMessageId: null,
+                    status: "sent" as const,
+                    processedAt: null,
+                    reviewedAt: null,
+                    failureMessage: null,
+                    analysis: null,
+                    draft: null,
+                },
+                `reviewed-mail-send:${id}`
+            );
+
+            if (item.status === "reviewed") {
+                await repository.update(id, { status: "dispatched" });
+            }
+
+            const source = await repository.get(id);
+            const sent = await repository.get(sentId);
+            if (!source || !sent) {
+                return context.json({ error: "Failed to finalize send" }, 500);
+            }
+
+            return context.json(
+                {
+                    source: toMailApiItem(source),
+                    sent: toMailApiItem(sent),
+                },
+                201
+            );
+        })
+
         .post("/api/mails/:id/retry-analysis", async (context) => {
             const id = context.req.param("id");
             const credentials = parseImapCredentialsFromRequest(
@@ -500,11 +584,8 @@ ${currentDraft ?? "아직 생성된 초안이 없습니다. 분석 결과를 바
                     }),
                 },
             });
-            return createUIMessageStreamResponse({
-                stream: toUIMessageStream({
-                    stream: result.stream,
-                }),
-            });
+            // oxlint-disable-next-line typescript/no-deprecated
+            return result.toUIMessageStreamResponse();
         });
 }
 
