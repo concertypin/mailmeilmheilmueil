@@ -1,26 +1,21 @@
 import { useRef, useState } from "react";
 import {
-    AddressBookIcon,
     FunnelIcon,
     EnvelopeSimpleIcon,
     MagnifyingGlassIcon,
-    PencilSimpleIcon,
     StarIcon,
 } from "@phosphor-icons/react";
 import { Link, useSearchParams } from "wouter";
 import { useMailData } from "@/lib/mail-data";
+import MailSidebar from "@/components/MailSidebar";
 import {
     buildImapHeaders,
     encodeImapBasicAuthorization,
     loadImapBasicCredentials,
     redirectForInvalidImapCredentials,
 } from "@/lib/imap-basic";
-import {
-    mailCategories,
-    type MailAnalysis,
-    type MailItem,
-} from "@/lib/mail-schema";
-
+import { type MailItem } from "@/lib/mail-schema";
+import { useAnalysisCriteria } from "@/lib/analysis-criteria-data";
 function statusLabel(status: MailItem["status"]): string {
     const labels = {
         queued: "대기 중",
@@ -34,6 +29,8 @@ function statusLabel(status: MailItem["status"]): string {
 }
 
 export default function Home() {
+    const { fields } = useAnalysisCriteria();
+    const categoryField = fields.find((f) => f.isCategory);
     const [selectedMailIds, setSelectedMailIds] = useState<Set<string>>(
         new Set()
     );
@@ -41,9 +38,7 @@ export default function Home() {
     const [senderFilter, setSenderFilter] = useState("");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
-    const [categoryFilter, setCategoryFilter] = useState<
-        "all" | MailAnalysis["category"]
-    >("all");
+    const [categoryFilter, setCategoryFilter] = useState("all");
     const [audienceFilter, setAudienceFilter] = useState("");
     const [scheduleFilter, setScheduleFilter] = useState("");
     const [deadlineFilter, setDeadlineFilter] = useState("");
@@ -183,6 +178,15 @@ export default function Home() {
                 : activeMailbox === "sent"
                   ? "보낸메일함"
                   : "발송대기함";
+    const distinctCategories = [
+        ...new Set(
+            visibleMailItems
+                .map((item) =>
+                    categoryField ? item.analysis?.[categoryField.key] : null
+                )
+                .filter((value): value is string => Boolean(value))
+        ),
+    ].sort();
 
     const filteredMailItems = visibleMailItems.filter((item) => {
         const receivedDate = item.receivedAt
@@ -190,18 +194,25 @@ export default function Home() {
             .toISOString()
             .slice(0, 10);
         const analysis = item.analysis;
+        const analysisField = (key: string) => {
+            const descriptor =
+                analysis && Object.getOwnPropertyDescriptor(analysis, key);
+            return typeof descriptor?.value === "string"
+                ? descriptor.value
+                : "";
+        };
+        const searchableValues = analysis
+            ? Object.values(analysis).filter(
+                  (value): value is string =>
+                      typeof value === "string" && value.length > 0
+              )
+            : [];
         const searchableText = [
             item.senderName,
             item.senderAddress,
             item.subject,
             item.textBody,
-            analysis?.category,
-            analysis?.audience,
-            analysis?.schedule,
-            analysis?.applicationDeadline,
-            analysis?.benefits,
-            analysis?.applicationMethod,
-            analysis?.contactOrReference,
+            ...searchableValues,
             ...(analysis?.reviewNotes ?? []),
             item.draft ?? "",
         ]
@@ -217,8 +228,13 @@ export default function Home() {
             item.senderAddress.toLowerCase().includes(senderQuery);
         const matchesDateFrom = dateFrom === "" || receivedDate >= dateFrom;
         const matchesDateTo = dateTo === "" || receivedDate <= dateTo;
+        const categoryValue = categoryField
+            ? analysis?.[categoryField.key]
+            : null;
         const matchesCategory =
-            categoryFilter === "all" || analysis?.category === categoryFilter;
+            categoryFilter === "all" ||
+            (typeof categoryValue === "string" &&
+                categoryValue === categoryFilter);
         const audienceQuery = audienceFilter.trim().toLowerCase();
         const scheduleQuery = scheduleFilter.trim().toLowerCase();
         const deadlineQuery = deadlineFilter.trim().toLowerCase();
@@ -229,26 +245,26 @@ export default function Home() {
         const contactQuery = contactFilter.trim().toLowerCase();
         const matchesAudience =
             audienceQuery === "" ||
-            (analysis?.audience ?? "").toLowerCase().includes(audienceQuery);
+            analysisField("audience").toLowerCase().includes(audienceQuery);
         const matchesSchedule =
             scheduleQuery === "" ||
-            (analysis?.schedule ?? "").toLowerCase().includes(scheduleQuery);
+            analysisField("schedule").toLowerCase().includes(scheduleQuery);
         const matchesDeadline =
             deadlineQuery === "" ||
-            (analysis?.applicationDeadline ?? "")
+            analysisField("applicationDeadline")
                 .toLowerCase()
                 .includes(deadlineQuery);
         const matchesBenefits =
             benefitsQuery === "" ||
-            (analysis?.benefits ?? "").toLowerCase().includes(benefitsQuery);
+            analysisField("benefits").toLowerCase().includes(benefitsQuery);
         const matchesApplicationMethod =
             applicationMethodQuery === "" ||
-            (analysis?.applicationMethod ?? "")
+            analysisField("applicationMethod")
                 .toLowerCase()
                 .includes(applicationMethodQuery);
         const matchesContact =
             contactQuery === "" ||
-            (analysis?.contactOrReference ?? "")
+            analysisField("contactOrReference")
                 .toLowerCase()
                 .includes(contactQuery);
         return (
@@ -268,150 +284,12 @@ export default function Home() {
     return (
         <div className="min-h-[calc(100vh-4.5rem)] bg-base-200">
             <div className="grid min-h-[calc(100vh-4.5rem)] lg:grid-cols-[15rem_minmax(0,1fr)]">
-                <aside className="border-b border-base-300 bg-base-200 p-3 lg:border-b-0 lg:border-r">
-                    <Link
-                        className="btn btn-primary btn-sm w-full justify-start"
-                        href="/compose"
-                    >
-                        <PencilSimpleIcon
-                            aria-hidden="true"
-                            size={18}
-                            weight="bold"
-                        />
-                        메일 쓰기
-                    </Link>
-
-                    <nav className="mt-5">
-                        <ul className="menu w-full gap-1 p-0 text-sm">
-                            <li>
-                                <button
-                                    className={
-                                        activeMailbox === "inbox"
-                                            ? "active"
-                                            : ""
-                                    }
-                                    onClick={() => setActiveMailbox("inbox")}
-                                    type="button"
-                                >
-                                    <EnvelopeSimpleIcon
-                                        aria-hidden="true"
-                                        size={18}
-                                    />
-                                    받은메일함
-                                    <span className="badge badge-sm">
-                                        {items
-                                            ? items.filter(
-                                                  (i) =>
-                                                      i.status !== "reviewed" &&
-                                                      i.status !== "sent"
-                                              ).length
-                                            : "—"}
-                                    </span>
-                                </button>
-                            </li>
-                            <li>
-                                <button
-                                    className={
-                                        activeMailbox === "important"
-                                            ? "active"
-                                            : ""
-                                    }
-                                    onClick={() =>
-                                        setActiveMailbox("important")
-                                    }
-                                    type="button"
-                                >
-                                    <StarIcon aria-hidden="true" size={18} />
-                                    중요 메일
-                                    <span className="badge badge-sm">
-                                        {items
-                                            ? items.filter(
-                                                  (i) => i.isImportant === true
-                                              ).length
-                                            : "—"}
-                                    </span>
-                                </button>
-                            </li>
-                        </ul>
-                    </nav>
-                    <div className="mt-7 border-t border-base-300 pt-5">
-                        <p className="px-3 text-xs font-semibold tracking-wide text-base-content/50">
-                            검토함
-                        </p>
-                        <ul className="menu mt-2 w-full gap-1 p-0 text-sm">
-                            <li>
-                                <button
-                                    className={`h-auto py-2 ${activeMailbox === "review" ? "active" : ""}`}
-                                    onClick={() => setActiveMailbox("review")}
-                                    type="button"
-                                >
-                                    <span className="text-left">
-                                        <span className="block">
-                                            홍보 메일 검토
-                                        </span>
-                                        <span className="mt-0.5 block text-xs font-normal text-base-content/55">
-                                            홍보 초안 검토 대기함
-                                        </span>
-                                    </span>
-                                    <span className="badge badge-primary badge-sm">
-                                        {items
-                                            ? items.filter(
-                                                  (i) =>
-                                                      i.status === "ready" &&
-                                                      i.analysis !== null
-                                              ).length
-                                            : "—"}
-                                    </span>
-                                </button>
-                            </li>
-                            <li>
-                                <button
-                                    className={
-                                        activeMailbox === "outbox"
-                                            ? "active"
-                                            : ""
-                                    }
-                                    onClick={() => setActiveMailbox("outbox")}
-                                    type="button"
-                                >
-                                    발송 대기
-                                    <span className="badge badge-sm">
-                                        {items
-                                            ? items.filter(
-                                                  (i) => i.status === "reviewed"
-                                              ).length
-                                            : "—"}
-                                    </span>
-                                </button>
-                            </li>
-                            <li>
-                                <button
-                                    className={
-                                        activeMailbox === "sent" ? "active" : ""
-                                    }
-                                    onClick={() => setActiveMailbox("sent")}
-                                    type="button"
-                                >
-                                    보낸메일함
-                                    <span className="badge badge-sm">
-                                        {items
-                                            ? items.filter(
-                                                  (i) => i.status === "sent"
-                                              ).length
-                                            : "—"}
-                                    </span>
-                                </button>
-                            </li>
-                        </ul>
-                        <Link
-                            className="btn btn-ghost btn-sm w-full justify-start"
-                            href="/contacts"
-                        >
-                            <AddressBookIcon aria-hidden="true" size={18} />
-                            연락처 관리
-                        </Link>
-                    </div>
-                </aside>
+                <MailSidebar
+                    activeMailbox={activeMailbox}
+                    activePage="inbox"
+                    items={items}
+                    onMailboxChange={setActiveMailbox}
+                />
 
                 <section className="bg-base-100">
                     {isLoading ? (
@@ -730,9 +608,7 @@ export default function Home() {
                                                                 setCategoryFilter(
                                                                     event
                                                                         .currentTarget
-                                                                        .value as
-                                                                        | "all"
-                                                                        | MailAnalysis["category"]
+                                                                        .value
                                                                 )
                                                             }
                                                             value={
@@ -742,7 +618,7 @@ export default function Home() {
                                                             <option value="all">
                                                                 전체
                                                             </option>
-                                                            {mailCategories.map(
+                                                            {distinctCategories.map(
                                                                 (category) => (
                                                                     <option
                                                                         key={

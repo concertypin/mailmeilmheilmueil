@@ -122,6 +122,7 @@ export default function Landing() {
         if (!canSubmit) return;
         setShowInvalidAlert(false);
         setIsSubmitting(true);
+        clearImapBasicCredentials();
         setLoginError(null);
 
         try {
@@ -139,7 +140,7 @@ export default function Landing() {
                     account: fullAccount,
                     password,
                 });
-                setLocation("/inbox");
+                setLocation("/dashboard");
                 return;
             }
 
@@ -161,6 +162,7 @@ export default function Landing() {
         }
     };
     const handleTestLogin = async () => {
+        clearImapBasicCredentials();
         setIsSubmitting(true);
         setLoginError(null);
         try {
@@ -195,7 +197,7 @@ export default function Landing() {
                     ? { secure: parsedData.secure }
                     : {}),
             });
-            setLocation("/inbox");
+            setLocation("/dashboard");
         } catch {
             setLoginError("테스트 계정 로그인에 실패했습니다");
         } finally {

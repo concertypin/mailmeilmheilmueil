@@ -10,7 +10,11 @@ import {
 } from "react";
 import type { MailItem } from "@/lib/mail-schema";
 import { fromMailApiItem, MailApiItemSchema } from "@/lib/mail-schema";
-import { throwIfUnauthorized } from "@/lib/imap-basic";
+import {
+    buildImapHeaders,
+    loadImapBasicCredentials,
+    throwIfUnauthorized,
+} from "@/lib/imap-basic";
 
 export interface MailDataSource {
     readonly initialItems: readonly MailItem[] | null;
@@ -38,7 +42,10 @@ export function createAttachedMailDataSource(
     return {
         initialItems: null,
         async list() {
-            const res = await fetchImpl("/api/mails");
+            const credentials = loadImapBasicCredentials();
+            const res = await fetchImpl("/api/mails", {
+                headers: credentials ? buildImapHeaders(credentials) : {},
+            });
             if (!res.ok) {
                 throw new Error(await parseApiError(res));
             }
@@ -46,7 +53,10 @@ export function createAttachedMailDataSource(
             return raw.map(fromMailApiItem);
         },
         async get(id: string) {
-            const res = await fetchImpl(`/api/mails/${id}`);
+            const credentials = loadImapBasicCredentials();
+            const res = await fetchImpl(`/api/mails/${id}`, {
+                headers: credentials ? buildImapHeaders(credentials) : {},
+            });
             if (res.status === 404) return null;
             if (!res.ok) {
                 throw new Error(await parseApiError(res));
@@ -56,9 +66,13 @@ export function createAttachedMailDataSource(
         },
         async review(item: MailItem, promotionDraft: string) {
             const trimmed = promotionDraft.trim();
+            const credentials = loadImapBasicCredentials();
             const res = await fetchImpl(`/api/mails/${item.id}/review`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(credentials ? buildImapHeaders(credentials) : {}),
+                },
                 body: JSON.stringify({ promotionDraft: trimmed }),
             });
             if (!res.ok) {

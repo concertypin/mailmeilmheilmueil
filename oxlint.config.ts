@@ -30,6 +30,18 @@ export default defineConfig({
                 "no-console": "off",
             },
         },
+        {
+            files: ["tests/**/*.test.ts"],
+            rules: {
+                "typescript/no-unsafe-assignment": "off",
+                "typescript/no-unsafe-member-access": "off",
+                "typescript/no-unsafe-call": "off",
+                "typescript/no-unsafe-return": "off",
+                "vitest/no-conditional-expect": "off",
+                "vitest/require-mock-type-parameters": "off",
+                "eslint/eqeqeq": "off",
+            },
+        },
     ],
     options: {
         denyWarnings: true,

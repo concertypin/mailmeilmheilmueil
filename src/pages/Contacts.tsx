@@ -1,15 +1,13 @@
 import { useRef, useState } from "react";
 import {
     AddressBookIcon,
-    EnvelopeSimpleIcon,
     PencilSimpleIcon,
     PlusIcon,
-    StarIcon,
     TrashIcon,
     XIcon,
 } from "@phosphor-icons/react";
-import { Link } from "wouter";
 import { useMailData } from "@/lib/mail-data";
+import MailSidebar from "@/components/MailSidebar";
 import { useAddressBook } from "@/lib/contact-book-data";
 import type {
     Contact,
@@ -167,100 +165,7 @@ export default function Contacts() {
     return (
         <div className="min-h-[calc(100vh-4.5rem)] bg-base-200">
             <div className="grid min-h-[calc(100vh-4.5rem)] lg:grid-cols-[15rem_minmax(0,1fr)]">
-                <aside className="border-b border-base-300 bg-base-200 p-3 lg:border-b-0 lg:border-r">
-                    <Link
-                        className="btn btn-primary btn-sm w-full justify-start"
-                        href="/compose"
-                    >
-                        <PencilSimpleIcon
-                            aria-hidden="true"
-                            size={18}
-                            weight="bold"
-                        />
-                        메일 쓰기
-                    </Link>
-                    <nav className="mt-5">
-                        <ul className="menu w-full gap-1 p-0 text-sm">
-                            <li>
-                                <Link href="/inbox">
-                                    <EnvelopeSimpleIcon
-                                        aria-hidden="true"
-                                        size={18}
-                                    />
-                                    받은메일함
-                                    <span className="badge badge-sm">
-                                        {items
-                                            ? items.filter(
-                                                  (i) =>
-                                                      i.status !== "reviewed" &&
-                                                      i.status !== "sent"
-                                              ).length
-                                            : "—"}
-                                    </span>
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/inbox?folder=important">
-                                    <StarIcon aria-hidden="true" size={18} />
-                                    중요 메일
-                                    <span className="badge badge-sm">1</span>
-                                </Link>
-                            </li>
-                        </ul>
-                    </nav>
-                    <div className="mt-7 border-t border-base-300 pt-5">
-                        <p className="px-3 text-xs font-semibold tracking-wide text-base-content/50">
-                            검토함
-                        </p>
-                        <ul className="menu mt-2 w-full gap-1 p-0 text-sm">
-                            <li>
-                                <Link
-                                    className="h-auto py-2"
-                                    href="/inbox?folder=review"
-                                >
-                                    <span className="text-left">
-                                        <span className="block">
-                                            홍보 메일 검토
-                                        </span>
-                                        <span className="mt-0.5 block text-xs font-normal text-base-content/55">
-                                            홍보 초안 검토 대기함
-                                        </span>
-                                    </span>
-                                    <span className="badge badge-primary badge-sm">
-                                        {items
-                                            ? items.filter(
-                                                  (i) =>
-                                                      i.status === "ready" &&
-                                                      i.analysis !== null
-                                              ).length
-                                            : "—"}
-                                    </span>
-                                </Link>
-                            </li>
-                            <li>
-                                <Link href="/inbox?folder=outbox">
-                                    발송 대기
-                                    <span className="badge badge-sm">
-                                        {items
-                                            ? items.filter(
-                                                  (i) => i.status === "reviewed"
-                                              ).length
-                                            : "—"}
-                                    </span>
-                                </Link>
-                            </li>
-                        </ul>
-                    </div>
-                    <div className="mt-7 border-t border-base-300 pt-5">
-                        <Link
-                            className="btn btn-ghost btn-sm w-full justify-start active"
-                            href="/contacts"
-                        >
-                            <AddressBookIcon aria-hidden="true" size={18} />
-                            연락처 관리
-                        </Link>
-                    </div>
-                </aside>
+                <MailSidebar activePage="contacts" items={items} />
 
                 <main className="bg-base-100 px-5 py-8 sm:px-8 lg:px-10">
                     <div className="mx-auto max-w-5xl">
