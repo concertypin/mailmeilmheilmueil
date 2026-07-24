@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { type MailItem } from "@/lib/mail-schema";
+import { z } from "zod";
 
 interface MailReviewPanelProps {
     item: MailItem;
@@ -51,6 +52,7 @@ export default function MailReviewPanel({
         DraftConversationMessage[]
     >([]);
     const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+    const [collabLoading, setCollabLoading] = useState(false);
 
     return (
         <div className="flex min-h-[calc(100dvh-15rem)] flex-col space-y-6">
@@ -318,40 +320,86 @@ export default function MailReviewPanel({
                                 />
                                 <button
                                     className="btn btn-primary btn-sm mt-3 w-full"
-                                    disabled={rewritePrompt.trim().length === 0}
+                                    disabled={
+                                        rewritePrompt.trim().length === 0 ||
+                                        collabLoading
+                                    }
                                     onClick={() => {
                                         const request = rewritePrompt.trim();
-                                        const firstSentence =
-                                            promotionDraft.match(
-                                                /^[\s\S]*?[.!?](?:\s|$)/
-                                            )?.[0] ?? promotionDraft;
-                                        const rewrittenDraft = request.includes(
-                                            "짧"
-                                        )
-                                            ? firstSentence.trim()
-                                            : request.includes("친근")
-                                              ? `안녕하세요!\n\n${promotionDraft}`
-                                              : request.includes("강조")
-                                                ? `${promotionDraft}\n\n지금 바로 확인해 보세요.`
-                                                : promotionDraft;
-                                        setPromotionDraft(rewrittenDraft);
-                                        setConversation([
-                                            ...conversation,
-                                            { role: "user", content: request },
+                                        if (request.length === 0) return;
+                                        setCollabLoading(true);
+                                        setConversation((prev) => [
+                                            ...prev,
                                             {
-                                                role: "assistant",
-                                                content:
-                                                    rewrittenDraft ===
-                                                    promotionDraft
-                                                        ? "요청을 확인했습니다. 현재 데모에서는 기존 초안을 유지했습니다."
-                                                        : "요청을 반영해 초안을 업데이트했습니다. 오른쪽 초안 내용을 확인해 주세요.",
+                                                role: "user" as const,
+                                                content: request,
                                             },
                                         ]);
                                         setRewritePrompt("");
+                                        void (async () => {
+                                            try {
+                                                const res = await fetch(
+                                                    `/api/mails/${item.id}/collab`,
+                                                    {
+                                                        method: "POST",
+                                                        headers: {
+                                                            "Content-Type":
+                                                                "application/json",
+                                                        },
+                                                        body: JSON.stringify({
+                                                            userRequest:
+                                                                request,
+                                                        }),
+                                                    }
+                                                );
+                                                if (!res.ok) {
+                                                    throw new Error(
+                                                        "협업 요청에 실패했습니다"
+                                                    );
+                                                }
+                                                const body: unknown =
+                                                    await res.json();
+                                                const parsed = z
+                                                    .object({
+                                                        rewrittenDraft:
+                                                            z.string(),
+                                                    })
+                                                    .safeParse(body);
+                                                if (!parsed.success) {
+                                                    throw new Error(
+                                                        "서버 응답이 올바르지 않습니다"
+                                                    );
+                                                }
+                                                setPromotionDraft(
+                                                    parsed.data.rewrittenDraft
+                                                );
+                                                setConversation((prev) => [
+                                                    ...prev,
+                                                    {
+                                                        role: "assistant" as const,
+                                                        content:
+                                                            "요청을 반영해 초안을 업데이트했습니다.",
+                                                    },
+                                                ]);
+                                            } catch {
+                                                setConversation((prev) => [
+                                                    ...prev,
+                                                    {
+                                                        role: "assistant" as const,
+                                                        content:
+                                                            "죄송합니다. 요청 처리 중 오류가 발생했습니다.",
+                                                    },
+                                                ]);
+                                            } finally {
+                                                setCollabLoading(false);
+                                            }
+                                        })();
                                     }}
                                     type="button"
                                 >
-                                    요청 보내기
+                                    {collabLoading
+                                        ? "처리 중..."
+                                        : "요청 보내기"}
                                 </button>
                             </div>
                         </div>

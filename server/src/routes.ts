@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { Hono } from "hono";
 import { Timestamp } from "firebase-admin/firestore";
 import {
@@ -8,7 +9,7 @@ import {
 } from "../../src/lib/mail-schema";
 import { firestoreRepository, type MailRepository } from "./repository";
 import { processMailItem, type MailAnalyzer } from "./processor";
-import { analyzeMail } from "./analysis";
+import { analyzeMail, generateCollabResponse } from "./analysis";
 import { parseImapBasicAuthorization } from "./basic-auth";
 import {
     syncInbox,
@@ -295,6 +296,55 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                             error instanceof Error
                                 ? error.message
                                 : "Analysis failed",
+                    },
+                    500
+                );
+            }
+        })
+        .post("/api/mails/:id/collab", async (context) => {
+            const id = context.req.param("id");
+            const item = await repository.get(id);
+            if (!item) {
+                return context.json({ error: "Mail not found" }, 404);
+            }
+            const currentDraft = item.draft ?? "";
+            if (!currentDraft.trim()) {
+                return context.json(
+                    { error: "No draft available for collaboration" },
+                    409
+                );
+            }
+            let body: unknown;
+            try {
+                body = await context.req.json();
+            } catch {
+                return context.json(
+                    { error: "userRequest must be a non-empty string" },
+                    400
+                );
+            }
+            const parsed = z
+                .object({ userRequest: z.string().min(1) })
+                .safeParse(body);
+            if (!parsed.success) {
+                return context.json(
+                    { error: "userRequest must be a non-empty string" },
+                    400
+                );
+            }
+            try {
+                const rewrittenDraft = await generateCollabResponse(
+                    currentDraft,
+                    parsed.data.userRequest
+                );
+                return context.json({ rewrittenDraft });
+            } catch (error: unknown) {
+                return context.json(
+                    {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : "Collaboration failed",
                     },
                     500
                 );
