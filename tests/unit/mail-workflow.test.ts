@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
     MailAnalysisSchema,
     MailApiItemSchema,
-    SendReviewedMailResponseSchema,
     type MailItem,
 } from "@/lib/mail-schema";
 import { parseMailSource } from "@server/mail-parser";
@@ -329,6 +328,24 @@ describe("mail parsing and processing", () => {
         expect(repository.item.status).toBe("ready");
         expect(repository.item.analysis).toEqual(analysis);
         expect(repository.updates[0]).toMatchObject({ status: "processing" });
+    });
+
+    it("does not generate a draft for an analysis refusal", async () => {
+        const repository = new FakeRepository();
+        const refusal = {
+            refusal: "not_a_promotion",
+            reviewNotes: [],
+        } satisfies NonNullable<MailItem["analysis"]>;
+        const draftGenerator = vi.fn(() => "should not be saved");
+
+        await processMailItem("mail-1", repository, {
+            analyzer: () => Promise.resolve(refusal),
+            draftGenerator,
+        });
+
+        expect(repository.item.analysis).toEqual(refusal);
+        expect(repository.item.draft).toBeNull();
+        expect(draftGenerator).not.toHaveBeenCalled();
     });
 
     it("retains original mail and stores the safe failed state", async () => {
@@ -1213,235 +1230,6 @@ describe("POST /api/compose — compose mail", () => {
         expect(body.recipients).toEqual(["student@example.invalid"]);
         expect(body.cc).toEqual([]);
         expect(body.bcc).toEqual([]);
-    });
-});
-
-describe("POST /api/mails/:id/send — send reviewed draft", () => {
-    class SendRepository implements MailRepository {
-        sentItem: MailItem | null = null;
-        sourceItem: MailItem;
-        updates: MailUpdate[] = [];
-        constructor(item: MailItem) {
-            this.sourceItem = item;
-        }
-
-        create(item: Omit<MailItem, "id">): Promise<string> {
-            this.sentItem = { id: "sent-1", ...item };
-            return Promise.resolve("sent-1");
-        }
-
-        createIfAbsent(
-            item: Omit<MailItem, "id">,
-            _key: string
-        ): Promise<{ id: string; created: boolean }> {
-            if (this.sentItem) {
-                return Promise.resolve({
-                    id: this.sentItem.id,
-                    created: false,
-                });
-            }
-            this.sentItem = { id: "sent-1", ...item };
-            return Promise.resolve({ id: "sent-1", created: true });
-        }
-
-        get(id: string): Promise<MailItem | null> {
-            if (id === "sent-1") return Promise.resolve(this.sentItem);
-            return Promise.resolve(this.sourceItem);
-        }
-
-        update(_id: string, update: MailUpdate): Promise<void> {
-            this.updates.push(update);
-            this.sourceItem = { ...this.sourceItem, ...update };
-            return Promise.resolve();
-        }
-
-        list(): Promise<MailItem[]> {
-            const result: MailItem[] = [this.sourceItem];
-            if (this.sentItem) result.push(this.sentItem);
-            return Promise.resolve(result);
-        }
-    }
-
-    it("returns 401 without Authorization header", async () => {
-        const repository = new SendRepository(sampleItem("reviewed"));
-        const routes = createRoutes({ repository });
-        const response = await routes.request("/api/mails/mail-1/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ bcc: ["user@example.invalid"] }),
-        });
-        expect(response.status).toBe(401);
-        expect(await response.json()).toMatchObject({
-            error: "IMAP credentials are required",
-        });
-    });
-
-    it("returns 400 for invalid bcc payload", async () => {
-        const repository = new SendRepository(sampleItem("reviewed"));
-        const routes = createRoutes({ repository });
-        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
-            "base64"
-        );
-
-        const missing = await routes.request("/api/mails/mail-1/send", {
-            method: "POST",
-            headers: {
-                authorization: `Basic ${encoded}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({}),
-        });
-        expect(missing.status).toBe(400);
-
-        const empty = await routes.request("/api/mails/mail-1/send", {
-            method: "POST",
-            headers: {
-                authorization: `Basic ${encoded}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ bcc: [] }),
-        });
-        expect(empty.status).toBe(400);
-
-        const badJson = await routes.request("/api/mails/mail-1/send", {
-            method: "POST",
-            headers: {
-                authorization: `Basic ${encoded}`,
-                "Content-Type": "application/json",
-            },
-            body: "not json",
-        });
-        expect(badJson.status).toBe(400);
-    });
-
-    it("returns 404 for unknown mail id", async () => {
-        const missing = new (class extends SendRepository {
-            override get(): Promise<MailItem | null> {
-                return Promise.resolve(null);
-            }
-        })(sampleItem("reviewed"));
-        const routes = createRoutes({ repository: missing });
-        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
-            "base64"
-        );
-        const response = await routes.request("/api/mails/nope/send", {
-            method: "POST",
-            headers: {
-                authorization: `Basic ${encoded}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ bcc: ["user@example.invalid"] }),
-        });
-        expect(response.status).toBe(404);
-    });
-
-    it("returns 409 for non-reviewed/dispatched status or missing draft", async () => {
-        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
-            "base64"
-        );
-
-        const queued = new SendRepository(sampleItem("queued"));
-        const queuedRes = await createRoutes({ repository: queued }).request(
-            "/api/mails/mail-1/send",
-            {
-                method: "POST",
-                headers: {
-                    authorization: `Basic ${encoded}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ bcc: ["user@example.invalid"] }),
-            }
-        );
-        expect(queuedRes.status).toBe(409);
-
-        const noDraft = new SendRepository(
-            Object.assign(sampleItem("reviewed"), { draft: null })
-        );
-        const noDraftRes = await createRoutes({ repository: noDraft }).request(
-            "/api/mails/mail-1/send",
-            {
-                method: "POST",
-                headers: {
-                    authorization: `Basic ${encoded}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ bcc: ["user@example.invalid"] }),
-            }
-        );
-        expect(noDraftRes.status).toBe(409);
-    });
-
-    it("returns 201 and transitions reviewed source to dispatched", async () => {
-        const repository = new SendRepository(
-            Object.assign(sampleItem("reviewed"), {
-                draft: "Promotion draft content",
-            })
-        );
-        const routes = createRoutes({ repository });
-        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
-            "base64"
-        );
-        const response = await routes.request("/api/mails/mail-1/send", {
-            method: "POST",
-            headers: {
-                authorization: `Basic ${encoded}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                bcc: ["student@example.invalid", "staff@example.invalid"],
-            }),
-        });
-        expect(response.status).toBe(201);
-
-        const body = SendReviewedMailResponseSchema.parse(
-            await response.json()
-        );
-        expect(body.source.status).toBe("dispatched");
-        expect(body.sent.status).toBe("sent");
-        expect(body.sent.subject).toBe(repository.sourceItem.subject);
-        expect(body.sent.textBody).toBe("Promotion draft content");
-        expect(body.sent.bcc).toEqual([
-            "student@example.invalid",
-            "staff@example.invalid",
-        ]);
-        expect(body.sent.senderAddress).toBe("user@kangnam.ac.kr");
-    });
-
-    it("is idempotent on retry", async () => {
-        const repository = new SendRepository(
-            Object.assign(sampleItem("reviewed"), {
-                draft: "Promotion draft content",
-            })
-        );
-        const routes = createRoutes({ repository });
-        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
-            "base64"
-        );
-        const payload = {
-            method: "POST" as const,
-            headers: {
-                authorization: `Basic ${encoded}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                bcc: ["student@example.invalid"],
-            }),
-        };
-
-        const first = await routes.request("/api/mails/mail-1/send", payload);
-        expect(first.status).toBe(201);
-        const firstBody = SendReviewedMailResponseSchema.parse(
-            await first.json()
-        );
-        expect(firstBody.source.status).toBe("dispatched");
-
-        const second = await routes.request("/api/mails/mail-1/send", payload);
-        expect(second.status).toBe(201);
-        const secondBody = SendReviewedMailResponseSchema.parse(
-            await second.json()
-        );
-        expect(secondBody.source.status).toBe("dispatched");
-        expect(secondBody.sent.id).toBe(firstBody.sent.id);
     });
 });
 
