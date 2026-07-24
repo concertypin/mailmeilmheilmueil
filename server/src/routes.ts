@@ -23,7 +23,7 @@ import {
 } from "./criteria";
 import { analyzeMail, collabModelConfig, pickModel } from "./analysis";
 import { processMailItem, type MailAnalyzer } from "./processor";
-import { parseImapBasicAuthorization } from "./basic-auth";
+import { parseImapCredentialsFromRequest } from "./basic-auth";
 import {
     createImapClient,
     isAuthenticationFailure,
@@ -69,8 +69,13 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
     return new Hono()
         .get("/healthz", (context) => context.json({ status: "ok" }))
         .post("/api/login", async (context) => {
-            const credentials = parseImapBasicAuthorization(
-                context.req.header("authorization")
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization"),
+                {
+                    "x-imap-host": context.req.header("x-imap-host"),
+                    "x-imap-port": context.req.header("x-imap-port"),
+                    "x-imap-secure": context.req.header("x-imap-secure"),
+                }
             );
             if (!credentials) {
                 return context.json(
@@ -125,7 +130,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
         })
         .get("/api/analysis-criteria", async (context) => {
-            const credentials = parseImapBasicAuthorization(
+            const credentials = parseImapCredentialsFromRequest(
                 context.req.header("authorization")
             );
             if (!credentials) {
@@ -148,7 +153,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
         })
         .put("/api/analysis-criteria", async (context) => {
-            const credentials = parseImapBasicAuthorization(
+            const credentials = parseImapCredentialsFromRequest(
                 context.req.header("authorization")
             );
             if (!credentials) {
@@ -188,8 +193,16 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
         })
         .post("/api/sync", async (context) => {
-            const credentials = parseImapBasicAuthorization(
-                context.req.header("authorization")
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization"),
+                {
+                    "x-imap-host":
+                        context.req.header("x-imap-host") ?? undefined,
+                    "x-imap-port":
+                        context.req.header("x-imap-port") ?? undefined,
+                    "x-imap-secure":
+                        context.req.header("x-imap-secure") ?? undefined,
+                }
             );
             if (!credentials) {
                 return context.json(
@@ -227,7 +240,10 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
         })
         .get("/api/mails", async (context) => {
-            const items = await repository.list();
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization")
+            );
+            const items = await repository.list(credentials?.account);
             return context.json(items.map(toMailApiItem));
         })
         .get("/api/mails/:id", async (context) => {
@@ -322,8 +338,16 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             return context.json(toMailApiItem(updated));
         })
         .post("/api/compose", async (context) => {
-            const credentials = parseImapBasicAuthorization(
-                context.req.header("authorization")
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization"),
+                {
+                    "x-imap-host":
+                        context.req.header("x-imap-host") ?? undefined,
+                    "x-imap-port":
+                        context.req.header("x-imap-port") ?? undefined,
+                    "x-imap-secure":
+                        context.req.header("x-imap-secure") ?? undefined,
+                }
             );
             if (!credentials) {
                 return context.json(
@@ -350,6 +374,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
 
             try {
                 const id = await repository.create({
+                    mailboxAccount: credentials.account,
                     senderName: credentials.account,
                     senderAddress: credentials.account,
                     recipients: parsed.data.to ?? [],
@@ -382,7 +407,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
 
         .post("/api/mails/:id/retry-analysis", async (context) => {
             const id = context.req.param("id");
-            const credentials = parseImapBasicAuthorization(
+            const credentials = parseImapCredentialsFromRequest(
                 context.req.header("authorization")
             );
             if (!credentials) {
@@ -484,11 +509,27 @@ ${currentDraft ?? "아직 생성된 초안이 없습니다. 분석 결과를 바
 }
 
 export const testAccountFromEnv = () => {
-    const id = process.env.TEST_IMAP_ID?.trim();
+    const account = process.env.TEST_IMAP_ACCOUNT?.trim();
     const password = process.env.TEST_IMAP_PASSWORD;
-    if (!id || !password) return undefined;
-    return {
-        account: `${id}@kangnam.ac.kr`,
+    if (!account || !password) return undefined;
+    const host = process.env.TEST_IMAP_HOST?.trim();
+    const portStr = process.env.TEST_IMAP_PORT?.trim();
+    const secureStr = process.env.TEST_IMAP_SECURE?.trim();
+    const result: ImapCredentials = {
+        account,
         password,
     };
+    if (host) result.host = host;
+    if (portStr) {
+        const port = Number(portStr);
+        if (Number.isSafeInteger(port) && port > 0 && port <= 65535) {
+            result.port = port;
+        }
+    }
+    if (secureStr === "false") {
+        result.secure = false;
+    } else if (secureStr === "true" || !secureStr) {
+        result.secure = true;
+    }
+    return result;
 };

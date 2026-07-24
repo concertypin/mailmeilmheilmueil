@@ -5,7 +5,7 @@ import {
 } from "imapflow";
 import { Timestamp } from "firebase-admin/firestore";
 import { analyzeMail } from "./analysis";
-import { parseMailSource } from "./mail-parser";
+import { parseMailSource, type ParsedMailSource } from "./mail-parser";
 import { processMailItem, type MailAnalyzer } from "./processor";
 import { firestoreRepository, type MailRepository } from "./repository";
 import {
@@ -15,6 +15,9 @@ import {
 export type ImapCredentials = {
     account: string;
     password: string;
+    host?: string;
+    port?: number;
+    secure?: boolean;
 };
 
 export type ImapSyncResult = {
@@ -142,6 +145,11 @@ async function closeClient(client: ImapClient): Promise<void> {
 export function createImapClient(credentials: ImapCredentials): ImapClient {
     const options: ImapFlowOptions = {
         ...imapOptionsFromEnv(),
+        ...(credentials.host ? { host: credentials.host } : {}),
+        ...(credentials.port ? { port: credentials.port } : {}),
+        ...(credentials.secure !== undefined
+            ? { secure: credentials.secure }
+            : {}),
         auth: { user: credentials.account, pass: credentials.password },
     };
     const client: ImapFlow & {
@@ -215,10 +223,10 @@ export async function syncInbox(
                 continue;
             }
 
-            let item: Awaited<ReturnType<typeof parseMailSource>>;
+            let source: ParsedMailSource;
             try {
                 const date = validInternalDate(message.internalDate);
-                item = await parseMailSource(
+                source = await parseMailSource(
                     message.source,
                     date ? Timestamp.fromDate(date) : Timestamp.now()
                 );
@@ -227,6 +235,10 @@ export async function syncInbox(
                 await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
                 continue;
             }
+            const item = {
+                ...source.item,
+                mailboxAccount: credentials.account,
+            };
 
             const idempotencyKey = `${credentials.account}|${uidValidity}|${uid}`;
             const inserted = await repository.createIfAbsent(
@@ -246,6 +258,14 @@ export async function syncInbox(
             } else {
                 result.duplicates += 1;
                 const existing = await repository.get(inserted.id);
+                if (
+                    existing &&
+                    existing.mailboxAccount !== credentials.account
+                ) {
+                    await repository.update(inserted.id, {
+                        mailboxAccount: credentials.account,
+                    });
+                }
                 if (existing?.status === "failed") {
                     try {
                         await processMailItem(inserted.id, repository, {

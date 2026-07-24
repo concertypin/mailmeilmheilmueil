@@ -39,3 +39,26 @@ export function parseImapBasicAuthorization(
 
     return { account, password };
 }
+
+export function parseImapCredentialsFromRequest(
+    authorization: string | undefined,
+    headers?: Record<string, string | undefined>
+): ImapCredentials | null {
+    const base = parseImapBasicAuthorization(authorization);
+    if (!base) return null;
+    if (!headers) return base;
+    const host = headers["x-imap-host"]?.trim();
+    const portStr = headers["x-imap-port"]?.trim();
+    const secureStr = headers["x-imap-secure"]?.trim();
+    const result: ImapCredentials = { ...base };
+    if (host) result.host = host;
+    if (portStr) {
+        const port = Number(portStr);
+        if (Number.isSafeInteger(port) && port > 0 && port <= 65535) {
+            result.port = port;
+        }
+    }
+    if (secureStr === "true") result.secure = true;
+    else if (secureStr === "false") result.secure = false;
+    return result;
+}
