@@ -12,6 +12,9 @@ import { firestoreRepository, type MailRepository } from "./repository";
 export type ImapCredentials = {
     account: string;
     password: string;
+    host?: string;
+    port?: number;
+    secure?: boolean;
 };
 
 export type ImapSyncResult = {
@@ -133,6 +136,11 @@ async function closeClient(client: ImapClient): Promise<void> {
 export function createImapClient(credentials: ImapCredentials): ImapClient {
     const options: ImapFlowOptions = {
         ...imapOptionsFromEnv(),
+        ...(credentials.host ? { host: credentials.host } : {}),
+        ...(credentials.port ? { port: credentials.port } : {}),
+        ...(credentials.secure !== undefined
+            ? { secure: credentials.secure }
+            : {}),
         auth: { user: credentials.account, pass: credentials.password },
     };
     const client: ImapFlow & {
