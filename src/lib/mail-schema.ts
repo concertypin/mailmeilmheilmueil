@@ -100,20 +100,24 @@ export const DEFAULT_ANALYSIS_FIELDS: readonly AnalysisField[] = [
     },
 ];
 
-/** Per-IMAP-account criteria: which custom fields the user has added on top of the defaults. */
+/** Per-IMAP-account criteria: default fields the user has disabled plus custom fields. */
 export const AnalysisCriteriaSchema = z
     .object({
+        disabledDefaultKeys: z.array(z.string()).default([]),
         customFields: z.array(AnalysisFieldSchema).max(13),
     })
     .refine(
         (data) => {
-            const defaultKeys = new Set(
+            const defaultKeySet = new Set(
                 DEFAULT_ANALYSIS_FIELDS.map((f) => f.key)
             );
+            for (const key of data.disabledDefaultKeys) {
+                if (!defaultKeySet.has(key)) return false;
+            }
             const seen = new Set<string>();
             for (const field of data.customFields) {
                 if (field.isCategory) return false;
-                if (defaultKeys.has(field.key)) return false;
+                if (defaultKeySet.has(field.key)) return false;
                 if (seen.has(field.key)) return false;
                 seen.add(field.key);
             }
@@ -121,16 +125,20 @@ export const AnalysisCriteriaSchema = z
         },
         {
             message:
-                "Custom fields must not duplicate default keys, must have unique keys, and no custom category field",
+                "Invalid disabled default keys, or custom fields must not duplicate default keys, must have unique keys, and no custom category field",
         }
     );
 export type AnalysisCriteria = z.infer<typeof AnalysisCriteriaSchema>;
 
-/** Concatenate the immutable default fields with the account's custom fields. */
+/** Resolve active fields: defaults minus disabled plus custom fields. */
 export function resolveAnalysisFields(
     criteria: AnalysisCriteria
 ): AnalysisField[] {
-    return [...DEFAULT_ANALYSIS_FIELDS, ...criteria.customFields];
+    const disabledSet = new Set(criteria.disabledDefaultKeys ?? []);
+    const defaults = DEFAULT_ANALYSIS_FIELDS.filter(
+        (f) => !disabledSet.has(f.key)
+    );
+    return [...defaults, ...criteria.customFields];
 }
 
 /**

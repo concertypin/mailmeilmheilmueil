@@ -18,13 +18,13 @@ function parseCriteriaDocument(
     data: DocumentData | undefined
 ): AnalysisCriteria {
     if (!data) {
-        return { customFields: [] };
+        return { disabledDefaultKeys: [], customFields: [] };
     }
     const result = AnalysisCriteriaSchema.safeParse(data);
     if (result.success) {
         return result.data;
     }
-    return { customFields: [] };
+    return { disabledDefaultKeys: [], customFields: [] };
 }
 
 export const firestoreAnalysisCriteriaRepository: AnalysisCriteriaRepository = {

@@ -26,9 +26,7 @@ export interface AnalysisCriteriaContextValue {
     fields: readonly AnalysisField[];
     isLoading: boolean;
     loadError: string | null;
-    saveCustomFields: (
-        customFields: AnalysisCriteria["customFields"]
-    ) => Promise<void>;
+    saveCriteria: (criteria: AnalysisCriteria) => Promise<void>;
     saveError: string | null;
     isSaving: boolean;
 }
@@ -44,6 +42,7 @@ export function AnalysisCriteriaProvider({
     children: ReactNode;
 }) {
     const [criteria, setCriteria] = useState<AnalysisCriteria>({
+        disabledDefaultKeys: [],
         customFields: [],
     });
     const [isLoading, setIsLoading] = useState(true);
@@ -66,7 +65,7 @@ export function AnalysisCriteriaProvider({
             credentials.password
         );
 
-        let cancelled = false;
+        const cancelled = false;
         setIsLoading(true);
         setLoadError(null);
 
@@ -97,14 +96,10 @@ export function AnalysisCriteriaProvider({
                 setLoadError(message);
                 setIsLoading(false);
             });
-
-        return () => {
-            cancelled = true;
-        };
     }, [credentials]);
 
-    const saveCustomFields = useCallback(
-        async (customFields: AnalysisCriteria["customFields"]) => {
+    const saveCriteria = useCallback(
+        async (updated: AnalysisCriteria) => {
             if (!credentials) {
                 throw new Error("IMAP credentials are required to save");
             }
@@ -124,7 +119,7 @@ export function AnalysisCriteriaProvider({
                         "Content-Type": "application/json",
                         authorization: auth,
                     },
-                    body: JSON.stringify({ customFields }),
+                    body: JSON.stringify(updated),
                 });
 
                 if (!res.ok) {
@@ -148,13 +143,12 @@ export function AnalysisCriteriaProvider({
         },
         [credentials]
     );
-
     const value: AnalysisCriteriaContextValue = {
         criteria,
         fields,
         isLoading,
         loadError,
-        saveCustomFields,
+        saveCriteria,
         saveError,
         isSaving,
     };

@@ -18,14 +18,16 @@ function isDuplicateKey(key: string, customFields: { key: string }[]): boolean {
 export default function Settings() {
     const {
         criteria,
-        fields: _fields,
         isLoading,
         loadError,
-        saveCustomFields,
+        saveCriteria,
         saveError,
         isSaving,
     } = useAnalysisCriteria();
 
+    const [disabledDefaultKeys, setDisabledDefaultKeys] = useState<string[]>(
+        () => criteria.disabledDefaultKeys ?? []
+    );
     const [localCustomFields, setLocalCustomFields] = useState<
         CustomFieldForm[]
     >(() =>
@@ -102,12 +104,13 @@ export default function Settings() {
         }
 
         try {
-            await saveCustomFields(
-                localCustomFields.map((f) => ({
+            await saveCriteria({
+                disabledDefaultKeys,
+                customFields: localCustomFields.map((f) => ({
                     ...f,
                     isCategory: false,
-                }))
-            );
+                })),
+            });
             setSaveMessage(
                 "저장되었습니다. 다음 동기화부터 새 기준이 적용됩니다."
             );
@@ -129,8 +132,7 @@ export default function Settings() {
             <div>
                 <h1 className="text-3xl font-bold">AI 분석 기준 설정</h1>
                 <p className="mt-2 text-base-content/60">
-                    AI가 메일을 분석할 때 추출할 필드를 관리합니다. 기본 필드는
-                    항상 포함되며, 사용자 정의 필드를 추가할 수 있습니다.
+                    AI가 메일을 분석할 때 추출할 필드를 관리합니다.
                 </p>
             </div>
 
@@ -140,57 +142,85 @@ export default function Settings() {
                 </div>
             ) : null}
 
+            {/* ── Default schema with toggles ──────────────── */}
             <section className="card border border-base-300 bg-base-100 shadow-sm">
                 <div className="card-body">
                     <h2 className="card-title">기본 스키마</h2>
                     <p className="text-sm text-base-content/60">
-                        모든 계정에 항상 포함되는 기본 분석 필드입니다.
+                        각 필드를 켜거나 꺼서 분석에 포함할 기본 필드를
+                        선택하세요.
                     </p>
                     <div className="overflow-x-auto">
                         <table className="table">
                             <thead>
                                 <tr>
+                                    <th>사용</th>
                                     <th>키</th>
                                     <th>레이블</th>
                                     <th>설명</th>
-                                    <th>분류</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {DEFAULT_ANALYSIS_FIELDS.map((field) => (
-                                    <tr key={field.key}>
-                                        <td className="font-mono text-sm">
-                                            {field.key}
-                                        </td>
-                                        <td>{field.label}</td>
-                                        <td className="text-sm text-base-content/70">
-                                            {field.instruction}
-                                        </td>
-                                        <td>
-                                            {field.isCategory ? (
-                                                <span className="badge badge-secondary badge-sm">
-                                                    분류
-                                                </span>
-                                            ) : (
-                                                <span className="badge badge-ghost badge-sm">
-                                                    일반
-                                                </span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {DEFAULT_ANALYSIS_FIELDS.map((field) => {
+                                    const isEnabled =
+                                        !disabledDefaultKeys.includes(
+                                            field.key
+                                        );
+                                    return (
+                                        <tr key={field.key}>
+                                            <td>
+                                                <input
+                                                    aria-label={`${field.label} 사용`}
+                                                    className="toggle toggle-primary toggle-sm"
+                                                    type="checkbox"
+                                                    checked={isEnabled}
+                                                    onChange={() => {
+                                                        setDisabledDefaultKeys(
+                                                            (prev) =>
+                                                                isEnabled
+                                                                    ? [
+                                                                          ...prev,
+                                                                          field.key,
+                                                                      ]
+                                                                    : prev.filter(
+                                                                          (k) =>
+                                                                              k !==
+                                                                              field.key
+                                                                      )
+                                                        );
+                                                    }}
+                                                />
+                                            </td>
+                                            <td className="font-mono text-sm">
+                                                {field.key}
+                                            </td>
+                                            <td
+                                                className={
+                                                    isEnabled
+                                                        ? ""
+                                                        : "text-base-content/40"
+                                                }
+                                            >
+                                                {field.label}
+                                            </td>
+                                            <td className="text-sm text-base-content/70">
+                                                {field.instruction}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
                 </div>
             </section>
 
+            {/* ── Custom fields ───────────────────────────── */}
             <section className="card border border-base-300 bg-base-100 shadow-sm">
                 <div className="card-body">
                     <h2 className="card-title">사용자 정의 필드</h2>
                     <p className="text-sm text-base-content/60">
-                        원하는 분석 필드를 추가하세요. 각 필드는 키(key),
-                        레이블(label), 추출 지시(instruction)로 구성됩니다.
+                        원하는 분석 필드를 추가하세요.
                     </p>
 
                     {localCustomFields.length === 0 ? (
@@ -313,11 +343,7 @@ export default function Settings() {
                     <div className="flex items-center gap-4">
                         <button
                             className="btn btn-primary"
-                            disabled={
-                                isSaving ||
-                                localCustomFields.length ===
-                                    criteria.customFields.length
-                            }
+                            disabled={isSaving}
                             onClick={() => {
                                 void handleSave();
                             }}
