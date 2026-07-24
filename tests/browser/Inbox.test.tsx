@@ -66,7 +66,7 @@ test("shows sent mailbox with sent status items", async () => {
     expect(screen.getByRole("heading", { name: "보낸메일함" })).toBeVisible();
 });
 
-test("opens the AI filter panel and resets filters", async () => {
+test("opens the filter panel and resets filters", async () => {
     vi.stubGlobal("localStorage", createMockLocalStorage());
     const user = userEvent.setup();
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
@@ -80,7 +80,59 @@ test("opens the AI filter panel and resets filters", async () => {
         </MailDataProvider>
     );
 
-    await user.click(screen.getAllByRole("button", { name: "필터" })[0]!);
+    // Dialog absent before clicking the filter button
+    expect(screen.queryByRole("dialog", { name: "고급 필터" })).toBeNull();
+    const filterButton = screen.getByRole("button", { name: "필터" });
+    expect(filterButton).toHaveAttribute("aria-expanded", "false");
+
+    // Click 필터 → compact popover opens with all controls
+    await user.click(filterButton);
+    expect(filterButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "고급 필터" })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "보낸사람" })).toBeVisible();
+    expect(screen.getByLabelText("수신일 시작일")).toBeVisible();
+    expect(screen.getByLabelText("수신일 종료일")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "분류" })).toBeVisible();
     expect(screen.getByRole("button", { name: "필터 초기화" })).toBeVisible();
-    expect(screen.getByRole("combobox", { name: "AI 분류" })).toBeVisible();
+
+    // Select "직업훈련" category → only that fixture's mail is shown
+    await user.selectOptions(
+        screen.getByRole("combobox", { name: "분류" }),
+        "직업훈련"
+    );
+    expect(
+        screen.getByText("2026 하계 데이터 분석 직업훈련 참가자 모집")
+    ).toBeVisible();
+    expect(
+        screen.queryByText("2026학년도 비교과 프로그램 참가자 모집")
+    ).toBeNull();
+    expect(screen.getByText("1 / 2")).toBeVisible();
+
+    // Fill sender and date controls with nonempty values
+    await user.type(
+        screen.getByRole("searchbox", { name: "보낸사람" }),
+        "테스트"
+    );
+    await user.type(screen.getByLabelText("수신일 시작일"), "2026-07-01");
+    await user.type(screen.getByLabelText("수신일 종료일"), "2026-07-31");
+
+    // Click 초기화 → all filter values reset
+    await user.click(screen.getByRole("button", { name: "필터 초기화" }));
+    expect(screen.getByRole("searchbox", { name: "보낸사람" })).toHaveValue("");
+    expect(screen.getByLabelText("수신일 시작일")).toHaveValue("");
+    expect(screen.getByLabelText("수신일 종료일")).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "분류" })).toHaveValue("all");
+    // Both fixture subjects reappear, header returns to 2 / 2
+    expect(
+        screen.getByText("2026학년도 비교과 프로그램 참가자 모집")
+    ).toBeVisible();
+    expect(
+        screen.getByText("2026 하계 데이터 분석 직업훈련 참가자 모집")
+    ).toBeVisible();
+    expect(screen.getByText("2 / 2")).toBeVisible();
+
+    // Toggle the same button again → popover closes
+    await user.click(filterButton);
+    expect(filterButton).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("dialog", { name: "고급 필터" })).toBeNull();
 });
