@@ -62,12 +62,13 @@ export default function Home() {
     const flaggingRef = useRef(new Set<string>());
     const [searchParams] = useSearchParams();
     const [activeMailbox, setActiveMailbox] = useState<
-        "inbox" | "important" | "review" | "outbox"
+        "inbox" | "important" | "review" | "outbox" | "sent"
     >(() => {
         const folder = searchParams.get("folder");
         return folder === "important" ||
             folder === "review" ||
-            folder === "outbox"
+            folder === "outbox" ||
+            folder === "sent"
             ? folder
             : "inbox";
     });
@@ -165,13 +166,15 @@ export default function Home() {
             retryingRef.current.delete(id);
         }
     };
-
     const visibleMailItems = (items ?? []).filter((item) => {
         if (activeMailbox === "review") {
             return item.status === "ready" && item.analysis !== null;
         }
         if (activeMailbox === "outbox") {
             return item.status === "reviewed";
+        }
+        if (activeMailbox === "sent") {
+            return item.status === "sent";
         }
         if (activeMailbox === "important") {
             return item.isImportant === true;
@@ -185,7 +188,10 @@ export default function Home() {
               ? "중요 메일"
               : activeMailbox === "review"
                 ? "홍보 메일 검토"
-                : "발송대기함";
+                : activeMailbox === "sent"
+                  ? "보낸메일함"
+                  : "발송대기함";
+
     const filteredMailItems = visibleMailItems.filter((item) => {
         const receivedDate = item.receivedAt
             .toDate()
@@ -396,6 +402,24 @@ export default function Home() {
                                         {items
                                             ? items.filter(
                                                   (i) => i.status === "reviewed"
+                                              ).length
+                                            : "—"}
+                                    </span>
+                                </button>
+                            </li>
+                            <li>
+                                <button
+                                    className={
+                                        activeMailbox === "sent" ? "active" : ""
+                                    }
+                                    onClick={() => setActiveMailbox("sent")}
+                                    type="button"
+                                >
+                                    보낸메일함
+                                    <span className="badge badge-sm">
+                                        {items
+                                            ? items.filter(
+                                                  (i) => i.status === "sent"
                                               ).length
                                             : "—"}
                                     </span>
@@ -955,7 +979,9 @@ export default function Home() {
                                     ? "검토 대기 중인 홍보 메일이 없습니다."
                                     : activeMailbox === "outbox"
                                       ? "발송 대기 중인 메일이 없습니다."
-                                      : "조건에 맞는 메일이 없습니다."}
+                                      : activeMailbox === "sent"
+                                        ? "보낸 메일이 없습니다."
+                                        : "조건에 맞는 메일이 없습니다."}
                             </div>
                         ) : null}
                     </div>
