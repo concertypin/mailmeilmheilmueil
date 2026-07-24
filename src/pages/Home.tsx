@@ -484,10 +484,10 @@ export default function Home() {
                                                     <legend className="label">
                                                         수신일
                                                     </legend>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                                                         <input
                                                             aria-label="수신일 시작일"
-                                                            className="input input-sm min-w-0 flex-1"
+                                                            className="input input-sm w-full min-w-0"
                                                             onChange={(event) =>
                                                                 setDateFrom(
                                                                     event
@@ -501,7 +501,7 @@ export default function Home() {
                                                         <span>–</span>
                                                         <input
                                                             aria-label="수신일 종료일"
-                                                            className="input input-sm min-w-0 flex-1"
+                                                            className="input input-sm w-full min-w-0"
                                                             onChange={(event) =>
                                                                 setDateTo(
                                                                     event
