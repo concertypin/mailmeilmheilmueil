@@ -4,10 +4,7 @@ import { analyzeMail, generateDraft } from "./analysis";
 
 export type MailAnalyzer = (item: MailItem) => Promise<MailAnalysis>;
 
-export type DraftGenerator = (
-    item: MailItem,
-    analysis: MailAnalysis
-) => Promise<string>;
+export type DraftGenerator = (item: MailItem, analysis: MailAnalysis) => string;
 
 export const AI_FAILURE_MESSAGE =
     "AI 분석에 실패했습니다. 테스트 메일을 다시 보내 주세요.";
@@ -33,12 +30,15 @@ export async function processMailItem(
             status: "ready",
             failureMessage: null,
         });
-        // Generate draft separately (fire-and-forget non-critical)
-        draftGenerator(item, analysis)
-            .then((draft) =>
-                repository.update(id, { draft }).catch(() => undefined)
-            )
-            .catch(() => undefined);
+        // Generate draft from analysis (sync formatting, no AI)
+        try {
+            const draft = draftGenerator(item, analysis);
+            if (draft) {
+                repository.update(id, { draft }).catch(() => undefined);
+            }
+        } catch {
+            /* draft formatting is best-effort */
+        }
         return "ready";
     } catch (error: unknown) {
         const message =

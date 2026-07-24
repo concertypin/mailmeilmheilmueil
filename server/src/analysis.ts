@@ -102,12 +102,6 @@ Return ONLY valid JSON. The response must be a single JSON object matching this 
   reviewNotes: string[];
 }`;
 
-const draftSystemPrompt = `You are a Korean university promotional copywriter.
-Write a concise, engaging Korean promotional draft for a shared-mail staff review workflow.
-Use only facts verified from the provided analysis. Never invent missing details.
-The tone should be warm and professional, suitable for a university announcement board.
-Keep it to 2-3 sentences. Write in Korean.`;
-
 const collabSystemPrompt = `You assist a university staff member in refining a promotional draft.
 The user provides a request. Modify the existing draft according to the request.
 Keep the tone warm and professional, suitable for a Korean university announcement.
@@ -136,38 +130,37 @@ export async function analyzeMail(item: MailItem): Promise<MailAnalysis> {
     return MailAnalysisSchema.parse(JSON.parse(result.text));
 }
 
-/** Generate a Korean promotional draft from analysis data. */
-export async function generateDraft(
-    item: MailItem,
-    analysis: MailAnalysis
-): Promise<string> {
-    const model = pickModel(config.draftModel);
-    const prompt = [
-        "Based on this email analysis, write a Korean promotional draft.",
-        "",
-        "--- Email ---",
-        `Subject: ${item.subject}`,
-        `Sender: ${item.senderName}`,
-        `Body: ${item.textBody}`,
-        "",
-        "--- Analysis ---",
-        `Category: ${analysis.category}`,
-        `Target: ${analysis.audience ?? "General"}`,
-        `Period: ${analysis.schedule ?? "Not specified"}`,
-        `Deadline: ${analysis.applicationDeadline ?? "Not specified"}`,
-        `Benefits: ${analysis.benefits ?? "Not specified"}`,
-        `How to apply: ${analysis.applicationMethod ?? "Not specified"}`,
-        `Contact: ${analysis.contactOrReference ?? "Not specified"}`,
-        "",
-        "Write 2-3 Korean sentences. Include key details. Be warm and professional.",
-    ].join("\n");
+/** Format analysis data into a Korean promotional draft (no AI call). */
+export function generateDraft(item: MailItem, analysis: MailAnalysis): string {
+    const lines: string[] = [];
 
-    const result = await generateText({
-        model,
-        instructions: draftSystemPrompt,
-        prompt,
-    });
-    return result.text.trim();
+    const title = item.subject.replace(/^\[.*?\]\s*/, "").trim();
+    lines.push(`📢 ${title}`);
+    lines.push("");
+
+    if (analysis.audience) {
+        lines.push(`📋 대상: ${analysis.audience}`);
+    }
+    if (analysis.schedule) {
+        lines.push(`📅 일정: ${analysis.schedule}`);
+    }
+    if (analysis.applicationDeadline) {
+        lines.push(`⏰ 마감: ${analysis.applicationDeadline}`);
+    }
+    if (analysis.benefits) {
+        lines.push(`🎁 혜택: ${analysis.benefits}`);
+    }
+    if (analysis.applicationMethod) {
+        lines.push(`📝 신청: ${analysis.applicationMethod}`);
+    }
+    if (analysis.contactOrReference) {
+        lines.push(`📞 문의: ${analysis.contactOrReference}`);
+    }
+
+    lines.push("");
+    lines.push("자세한 사항은 원본 메일을 확인해 주세요.");
+
+    return lines.join("\n");
 }
 
 /** Refine a draft based on user request (textual-only model). */
