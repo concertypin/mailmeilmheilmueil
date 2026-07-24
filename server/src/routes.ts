@@ -410,11 +410,27 @@ ${currentDraft ?? "아직 생성된 초안이 없습니다. 분석 결과를 바
 }
 
 export const testAccountFromEnv = () => {
-    const id = process.env.TEST_IMAP_ID?.trim();
+    const account = process.env.TEST_IMAP_ACCOUNT?.trim();
     const password = process.env.TEST_IMAP_PASSWORD;
-    if (!id || !password) return undefined;
-    return {
-        account: `${id}@kangnam.ac.kr`,
+    if (!account || !password) return undefined;
+    const host = process.env.TEST_IMAP_HOST?.trim();
+    const portStr = process.env.TEST_IMAP_PORT?.trim();
+    const secureStr = process.env.TEST_IMAP_SECURE?.trim();
+    const result: ImapCredentials = {
+        account,
         password,
     };
+    if (host) result.host = host;
+    if (portStr) {
+        const port = Number(portStr);
+        if (Number.isSafeInteger(port) && port > 0 && port <= 65535) {
+            result.port = port;
+        }
+    }
+    if (secureStr === "false") {
+        result.secure = false;
+    } else if (secureStr === "true" || !secureStr) {
+        result.secure = true;
+    }
+    return result;
 };
