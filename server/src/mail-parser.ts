@@ -3,6 +3,16 @@ import { parse as parseHtml } from "node-html-parser";
 import { Timestamp } from "firebase-admin/firestore";
 import type { MailItem } from "../../src/lib/mail-schema";
 
+export type MailImage = {
+    readonly data: Uint8Array;
+    readonly mediaType: string;
+};
+
+export type ParsedMailSource = {
+    readonly item: Omit<MailItem, "id">;
+    readonly images: readonly MailImage[];
+};
+
 class MailParseError extends Error {
     constructor(message: string) {
         super(message);
@@ -51,20 +61,42 @@ async function parseEmail(raw: Buffer): Promise<Email> {
     }
 }
 
-function requireTextBody(email: Email): void {
+/** Normalize text body from HTML when plain text absent. */
+function normalizeBody(email: Email): void {
     if (!email.text?.trim() && email.html?.trim()) {
         email.text = parseHtml(email.html).text;
     }
-    if (!email.text?.trim()) {
-        throw new MailParseError("Message has no usable text body");
+}
+
+function extractImages(email: Email): MailImage[] {
+    const images: MailImage[] = [];
+    for (const attachment of email.attachments ?? []) {
+        const mimeType = attachment.mimeType;
+        if (!mimeType.startsWith("image/")) continue;
+        const content = attachment.content;
+        if (content instanceof ArrayBuffer || content instanceof Uint8Array) {
+            const data =
+                content instanceof Uint8Array
+                    ? content
+                    : new Uint8Array(content);
+            images.push({ data, mediaType: mimeType });
+        }
     }
+    return images;
 }
 
 export async function parseMailSource(
     raw: Buffer,
     receivedAt = Timestamp.now()
-): Promise<Omit<MailItem, "id">> {
+): Promise<ParsedMailSource> {
     const email = await parseEmail(raw);
-    requireTextBody(email);
-    return parsedMail(email, receivedAt);
+    normalizeBody(email);
+    const images = extractImages(email);
+    if (!email.text?.trim() && images.length === 0) {
+        throw new MailParseError(
+            "Message has no usable text body or image attachment"
+        );
+    }
+    const item = parsedMail(email, receivedAt);
+    return { item, images };
 }

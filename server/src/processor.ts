@@ -1,8 +1,12 @@
 import { type MailAnalysis, type MailItem } from "../../src/lib/mail-schema";
 import { firestoreRepository, now, type MailRepository } from "./repository";
 import { analyzeMail, generateDraft } from "./analysis";
+import type { MailImage } from "./mail-parser";
 
-export type MailAnalyzer = (item: MailItem) => Promise<MailAnalysis>;
+export type MailAnalyzer = (
+    item: MailItem,
+    images: readonly MailImage[]
+) => Promise<MailAnalysis>;
 
 export type DraftGenerator = (item: MailItem, analysis: MailAnalysis) => string;
 
@@ -14,6 +18,7 @@ export async function processMailItem(
     id: string,
     repository: MailRepository = firestoreRepository,
     analyzer: MailAnalyzer = analyzeMail,
+    images: readonly MailImage[] = [],
     draftGenerator: DraftGenerator = generateDraft
 ): Promise<"ready" | "failed"> {
     const item = await repository.get(id);
@@ -23,7 +28,7 @@ export async function processMailItem(
 
     await repository.update(id, { status: "processing", failureMessage: null });
     try {
-        const analysis = await analyzer(item);
+        const analysis = await analyzer(item, images);
         await repository.update(id, {
             analysis,
             processedAt: now(),

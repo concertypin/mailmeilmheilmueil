@@ -5,7 +5,7 @@ import {
 } from "imapflow";
 import { Timestamp } from "firebase-admin/firestore";
 import { analyzeMail } from "./analysis";
-import { parseMailSource } from "./mail-parser";
+import { parseMailSource, type ParsedMailSource } from "./mail-parser";
 import { processMailItem, type MailAnalyzer } from "./processor";
 import { firestoreRepository, type MailRepository } from "./repository";
 
@@ -204,10 +204,10 @@ export async function syncInbox(
                 continue;
             }
 
-            let item: Awaited<ReturnType<typeof parseMailSource>>;
+            let source: ParsedMailSource;
             try {
                 const date = validInternalDate(message.internalDate);
-                item = await parseMailSource(
+                source = await parseMailSource(
                     message.source,
                     date ? Timestamp.fromDate(date) : Timestamp.now()
                 );
@@ -219,13 +219,18 @@ export async function syncInbox(
 
             const idempotencyKey = `${credentials.account}|${uidValidity}|${uid}`;
             const inserted = await repository.createIfAbsent(
-                item,
+                source.item,
                 idempotencyKey
             );
             if (inserted.created) {
                 result.imported += 1;
                 try {
-                    await processMailItem(inserted.id, repository, analyzer);
+                    await processMailItem(
+                        inserted.id,
+                        repository,
+                        analyzer,
+                        source.images
+                    );
                 } catch {
                     /* AI analysis failure is non-fatal */
                 }
@@ -237,7 +242,8 @@ export async function syncInbox(
                         await processMailItem(
                             inserted.id,
                             repository,
-                            analyzer
+                            analyzer,
+                            source.images
                         );
                     } catch {
                         /* retry AI analysis failure is non-fatal */
