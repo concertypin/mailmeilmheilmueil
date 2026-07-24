@@ -39,6 +39,12 @@ export default function Home() {
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [categoryFilter, setCategoryFilter] = useState("all");
+    const [audienceFilter, setAudienceFilter] = useState("");
+    const [scheduleFilter, setScheduleFilter] = useState("");
+    const [deadlineFilter, setDeadlineFilter] = useState("");
+    const [benefitsFilter, setBenefitsFilter] = useState("");
+    const [applicationMethodFilter, setApplicationMethodFilter] = useState("");
+    const [contactFilter, setContactFilter] = useState("");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [promotionDraftMessage, setPromotionDraftMessage] = useState<
         string | null
@@ -188,6 +194,13 @@ export default function Home() {
             .toISOString()
             .slice(0, 10);
         const analysis = item.analysis;
+        const analysisField = (key: string) => {
+            const descriptor =
+                analysis && Object.getOwnPropertyDescriptor(analysis, key);
+            return typeof descriptor?.value === "string"
+                ? descriptor.value
+                : "";
+        };
         const searchableValues = analysis
             ? Object.values(analysis).filter(
                   (value): value is string =>
@@ -222,12 +235,50 @@ export default function Home() {
             categoryFilter === "all" ||
             (typeof categoryValue === "string" &&
                 categoryValue === categoryFilter);
+        const audienceQuery = audienceFilter.trim().toLowerCase();
+        const scheduleQuery = scheduleFilter.trim().toLowerCase();
+        const deadlineQuery = deadlineFilter.trim().toLowerCase();
+        const benefitsQuery = benefitsFilter.trim().toLowerCase();
+        const applicationMethodQuery = applicationMethodFilter
+            .trim()
+            .toLowerCase();
+        const contactQuery = contactFilter.trim().toLowerCase();
+        const matchesAudience =
+            audienceQuery === "" ||
+            analysisField("audience").toLowerCase().includes(audienceQuery);
+        const matchesSchedule =
+            scheduleQuery === "" ||
+            analysisField("schedule").toLowerCase().includes(scheduleQuery);
+        const matchesDeadline =
+            deadlineQuery === "" ||
+            analysisField("applicationDeadline")
+                .toLowerCase()
+                .includes(deadlineQuery);
+        const matchesBenefits =
+            benefitsQuery === "" ||
+            analysisField("benefits").toLowerCase().includes(benefitsQuery);
+        const matchesApplicationMethod =
+            applicationMethodQuery === "" ||
+            analysisField("applicationMethod")
+                .toLowerCase()
+                .includes(applicationMethodQuery);
+        const matchesContact =
+            contactQuery === "" ||
+            analysisField("contactOrReference")
+                .toLowerCase()
+                .includes(contactQuery);
         return (
             matchesSearch &&
             matchesSender &&
             matchesDateFrom &&
             matchesDateTo &&
-            matchesCategory
+            matchesCategory &&
+            matchesAudience &&
+            matchesSchedule &&
+            matchesDeadline &&
+            matchesBenefits &&
+            matchesApplicationMethod &&
+            matchesContact
         );
     });
     return (
@@ -323,7 +374,15 @@ export default function Home() {
                                             aria-label="고급 필터"
                                             className="absolute right-0 top-full z-10 mt-2 w-[calc(100vw-2.5rem)] max-w-md border border-base-300 bg-base-200 shadow-sm card"
                                         >
-                                            <div className="card-body grid gap-5 p-5 sm:grid-cols-2">
+                                            <div className="card-body grid gap-5 p-5 md:grid-cols-2">
+                                                <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3">
+                                                    <h3 className="font-semibold">
+                                                        기본 필터
+                                                    </h3>
+                                                    <span className="text-xs text-base-content/55">
+                                                        보낸사람과 수신일
+                                                    </span>
+                                                </div>
                                                 <label className="fieldset">
                                                     <span className="label">
                                                         보낸사람
@@ -343,14 +402,14 @@ export default function Home() {
                                                         value={senderFilter}
                                                     />
                                                 </label>
-                                                <fieldset className="fieldset">
+                                                <fieldset className="fieldset md:col-span-2">
                                                     <legend className="label">
                                                         수신일
                                                     </legend>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                                                         <input
                                                             aria-label="수신일 시작일"
-                                                            className="input input-sm min-w-0 flex-1"
+                                                            className="input input-sm w-full min-w-0"
                                                             onChange={(event) =>
                                                                 setDateFrom(
                                                                     event
@@ -364,7 +423,7 @@ export default function Home() {
                                                         <span>–</span>
                                                         <input
                                                             aria-label="수신일 종료일"
-                                                            className="input input-sm min-w-0 flex-1"
+                                                            className="input input-sm w-full min-w-0"
                                                             onChange={(event) =>
                                                                 setDateTo(
                                                                     event
@@ -377,7 +436,167 @@ export default function Home() {
                                                         />
                                                     </div>
                                                 </fieldset>
-                                                <div className="sm:col-span-2">
+                                                <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3 pt-2">
+                                                    <h3 className="font-semibold">
+                                                        분류
+                                                    </h3>
+                                                </div>
+                                                <div className="collapse col-span-full border-b border-base-300 rounded-none">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="peer min-h-0"
+                                                    />
+                                                    <div className="collapse-title min-h-0 flex items-center gap-3 pt-2 pb-3 font-semibold text-base">
+                                                        <h3 className="font-semibold">
+                                                            AI 분류 정보
+                                                        </h3>
+                                                        <span className="text-xs text-base-content/55 font-normal">
+                                                            분류기가 추출한 정보
+                                                        </span>
+                                                    </div>
+                                                    <div className="collapse-content px-0 pb-0">
+                                                        <div className="grid gap-5 pt-2 md:grid-cols-2">
+                                                            <label className="fieldset">
+                                                                <span className="label">
+                                                                    대상
+                                                                </span>
+                                                                <input
+                                                                    aria-label="대상"
+                                                                    className="input input-sm w-full"
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        setAudienceFilter(
+                                                                            event
+                                                                                .currentTarget
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    placeholder="예: 대학생"
+                                                                    type="search"
+                                                                    value={
+                                                                        audienceFilter
+                                                                    }
+                                                                />
+                                                            </label>
+                                                            <label className="fieldset">
+                                                                <span className="label">
+                                                                    일정
+                                                                </span>
+                                                                <input
+                                                                    aria-label="일정"
+                                                                    className="input input-sm w-full"
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        setScheduleFilter(
+                                                                            event
+                                                                                .currentTarget
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    placeholder="예: 8월 10일"
+                                                                    type="search"
+                                                                    value={
+                                                                        scheduleFilter
+                                                                    }
+                                                                />
+                                                            </label>
+                                                            <label className="fieldset">
+                                                                <span className="label">
+                                                                    신청 마감
+                                                                </span>
+                                                                <input
+                                                                    aria-label="신청 마감"
+                                                                    className="input input-sm w-full"
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        setDeadlineFilter(
+                                                                            event
+                                                                                .currentTarget
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    type="date"
+                                                                    value={
+                                                                        deadlineFilter
+                                                                    }
+                                                                />
+                                                            </label>
+                                                            <label className="fieldset">
+                                                                <span className="label">
+                                                                    혜택
+                                                                </span>
+                                                                <input
+                                                                    aria-label="혜택"
+                                                                    className="input input-sm w-full"
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        setBenefitsFilter(
+                                                                            event
+                                                                                .currentTarget
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    placeholder="예: 수료증"
+                                                                    type="search"
+                                                                    value={
+                                                                        benefitsFilter
+                                                                    }
+                                                                />
+                                                            </label>
+                                                            <label className="fieldset">
+                                                                <span className="label">
+                                                                    신청 방법
+                                                                </span>
+                                                                <input
+                                                                    aria-label="신청 방법"
+                                                                    className="input input-sm w-full"
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        setApplicationMethodFilter(
+                                                                            event
+                                                                                .currentTarget
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    placeholder="예: 온라인 신청"
+                                                                    type="search"
+                                                                    value={
+                                                                        applicationMethodFilter
+                                                                    }
+                                                                />
+                                                            </label>
+                                                            <label className="fieldset">
+                                                                <span className="label">
+                                                                    문의·참고
+                                                                </span>
+                                                                <input
+                                                                    aria-label="문의·참고"
+                                                                    className="input input-sm w-full"
+                                                                    onChange={(
+                                                                        event
+                                                                    ) =>
+                                                                        setContactFilter(
+                                                                            event
+                                                                                .currentTarget
+                                                                                .value
+                                                                        )
+                                                                    }
+                                                                    placeholder="예: 전화번호"
+                                                                    type="search"
+                                                                    value={
+                                                                        contactFilter
+                                                                    }
+                                                                />
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="md:col-span-2">
                                                     <label className="fieldset">
                                                         <span className="label">
                                                             분류
@@ -418,7 +637,14 @@ export default function Home() {
                                                         </select>
                                                     </label>
                                                 </div>
-                                                <div className="card-actions sm:col-span-2 mt-1 items-center justify-end border-t border-base-300 pt-4">
+                                                <div className="card-actions mt-1 items-center justify-between border-t border-base-300 pt-4 md:col-span-2">
+                                                    <p className="text-sm text-base-content/60">
+                                                        검색 결과{" "}
+                                                        {
+                                                            filteredMailItems.length
+                                                        }
+                                                        개
+                                                    </p>
                                                     <button
                                                         className="btn btn-ghost btn-sm"
                                                         onClick={() => {
@@ -427,6 +653,24 @@ export default function Home() {
                                                             setDateTo("");
                                                             setCategoryFilter(
                                                                 "all"
+                                                            );
+                                                            setAudienceFilter(
+                                                                ""
+                                                            );
+                                                            setScheduleFilter(
+                                                                ""
+                                                            );
+                                                            setDeadlineFilter(
+                                                                ""
+                                                            );
+                                                            setBenefitsFilter(
+                                                                ""
+                                                            );
+                                                            setApplicationMethodFilter(
+                                                                ""
+                                                            );
+                                                            setContactFilter(
+                                                                ""
                                                             );
                                                         }}
                                                         type="button"
