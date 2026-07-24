@@ -54,6 +54,7 @@ export type MailAnalysis = z.infer<typeof MailAnalysisSchema>;
 
 export const MailItemSchema = z.object({
     id: z.string(),
+    mailboxAccount: z.string().optional(),
     senderName: z.string(),
     senderAddress: z.string(),
     recipients: z.array(z.string()),

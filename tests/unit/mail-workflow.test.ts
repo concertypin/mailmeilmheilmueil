@@ -339,6 +339,9 @@ describe("IMAP synchronization", () => {
         expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
         expect(analyzed).toBe(1);
         expect(repository.items.get("mail-1")?.status).toBe("ready");
+        expect(repository.items.get("mail-1")?.mailboxAccount).toBe(
+            "inbox@example.invalid"
+        );
         expect(client.locks[0]).toEqual({
             path: "INBOX",
             options: { readOnly: false, acquireTimeout: 30000 },
