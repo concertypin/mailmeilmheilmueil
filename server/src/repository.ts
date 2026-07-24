@@ -10,6 +10,7 @@ import {
 export type MailUpdate = Partial<
     Pick<
         MailItem,
+        | "mailboxAccount"
         | "status"
         | "processedAt"
         | "reviewedAt"
@@ -26,7 +27,7 @@ export interface MailRepository {
         idempotencyKey: string
     ): Promise<{ id: string; created: boolean }>;
     get(id: string): Promise<MailItem | null>;
-    list(): Promise<MailItem[]>;
+    list(mailboxAccount?: string): Promise<MailItem[]>;
     update(id: string, update: MailUpdate): Promise<void>;
 }
 
@@ -84,12 +85,17 @@ export const firestoreRepository: MailRepository = {
     async update(id, update) {
         await db.collection("mailItems").doc(id).update(stripUndefined(update));
     },
-    async list() {
+    async list(mailboxAccount) {
         const snapshot = await db
             .collection("mailItems")
             .orderBy("receivedAt", "desc")
             .get();
-        return snapshot.docs.map((doc) => parseMailItem(doc.id, doc.data()));
+        const items = snapshot.docs.map((doc) =>
+            parseMailItem(doc.id, doc.data())
+        );
+        return mailboxAccount
+            ? items.filter((item) => item.mailboxAccount === mailboxAccount)
+            : items;
     },
 };
 

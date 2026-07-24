@@ -29,8 +29,9 @@ describe("createAttachedMailDataSource", () => {
 
         const items = await source.list();
 
-        // Verify it called the right URL
-        expect(fetchFn).toHaveBeenCalledWith("/api/mails");
+        expect(fetchFn).toHaveBeenCalledWith("/api/mails", {
+            headers: {},
+        });
 
         // Verify it parsed the response correctly
         expect(items).toHaveLength(1);
@@ -52,7 +53,9 @@ describe("createAttachedMailDataSource", () => {
                 .mockResolvedValue(notFoundResponse);
             const source = createAttachedMailDataSource(fetchFn);
             const result = await source.get("unknown-id");
-            expect(fetchFn).toHaveBeenCalledWith("/api/mails/unknown-id");
+            expect(fetchFn).toHaveBeenCalledWith("/api/mails/unknown-id", {
+                headers: {},
+            });
             expect(result).toBeNull();
         }
     );
@@ -79,7 +82,9 @@ describe("createAttachedMailDataSource", () => {
         const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(apiResponse);
         const source = createAttachedMailDataSource(fetchFn);
         const result = await source.get("existing-1");
-        expect(fetchFn).toHaveBeenCalledWith("/api/mails/existing-1");
+        expect(fetchFn).toHaveBeenCalledWith("/api/mails/existing-1", {
+            headers: {},
+        });
         if (!result) {
             throw new Error("Expected a mail item");
         }

@@ -162,7 +162,10 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
         })
         .get("/api/mails", async (context) => {
-            const items = await repository.list();
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization")
+            );
+            const items = await repository.list(credentials?.account);
             return context.json(items.map(toMailApiItem));
         })
         .get("/api/mails/:id", async (context) => {
@@ -293,6 +296,7 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
 
             try {
                 const id = await repository.create({
+                    mailboxAccount: credentials.account,
                     senderName: credentials.account,
                     senderAddress: credentials.account,
                     recipients: parsed.data.to ?? [],

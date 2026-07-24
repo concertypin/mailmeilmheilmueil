@@ -224,6 +224,10 @@ export async function syncInbox(
                 await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
                 continue;
             }
+            item = {
+                ...item,
+                mailboxAccount: credentials.account,
+            };
 
             const idempotencyKey = `${credentials.account}|${uidValidity}|${uid}`;
             const inserted = await repository.createIfAbsent(
@@ -240,6 +244,14 @@ export async function syncInbox(
             } else {
                 result.duplicates += 1;
                 const existing = await repository.get(inserted.id);
+                if (
+                    existing &&
+                    existing.mailboxAccount !== credentials.account
+                ) {
+                    await repository.update(inserted.id, {
+                        mailboxAccount: credentials.account,
+                    });
+                }
                 if (existing?.status === "failed") {
                     try {
                         await processMailItem(
