@@ -37,13 +37,14 @@ test("login modal: email+password enables submit button", async () => {
     const submitBtn = dialog.querySelector('button[type="submit"]');
     expect(submitBtn).toBeDisabled();
 
-    const emailInput = screen.getByPlaceholderText("team@example.com");
-    await user.type(emailInput, "user@test.com");
+    const emailInput = screen.getByPlaceholderText("510130340");
+    await user.type(emailInput, "510130340");
     const passwordInput = screen.getByPlaceholderText("••••••••");
     await user.type(passwordInput, "password123");
 
     expect(submitBtn).toBeEnabled();
 
+    expect(screen.getByText("@kangnam.ac.kr")).toBeInTheDocument();
     expect(
         screen.getByText("계속하면 이용약관에 동의하는 것으로 간주합니다.")
     ).toBeInTheDocument();

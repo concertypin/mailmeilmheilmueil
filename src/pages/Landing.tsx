@@ -430,17 +430,23 @@ export default function Landing() {
                                 <div className="mt-7 space-y-3">
                                     <label className="fieldset">
                                         <span className="label">이메일</span>
-                                        <input
-                                            className="input w-full"
-                                            onChange={(event) =>
-                                                setAccount(
-                                                    event.currentTarget.value
-                                                )
-                                            }
-                                            placeholder="team@example.com"
-                                            type="text"
-                                            value={account}
-                                        />
+                                        <div className="join w-full">
+                                            <input
+                                                className="input join-item w-full"
+                                                onChange={(event) =>
+                                                    setAccount(
+                                                        event.currentTarget
+                                                            .value
+                                                    )
+                                                }
+                                                placeholder="510130340"
+                                                type="text"
+                                                value={account}
+                                            />
+                                            <span className="join-item flex items-center rounded-r-box border border-l-0 border-base-300 bg-base-200 px-3 text-sm text-base-content/70">
+                                                @kangnam.ac.kr
+                                            </span>
+                                        </div>
                                     </label>
                                     <label className="fieldset">
                                         <span className="label">비밀번호</span>
