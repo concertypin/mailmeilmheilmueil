@@ -131,6 +131,41 @@ export default function Home() {
             setIsSyncing(false);
         }
     };
+
+    const retryingRef = useRef<Set<string>>(new Set());
+    const handleRetryAnalysis = async (id: string) => {
+        if (retryingRef.current.has(id)) return;
+        retryingRef.current.add(id);
+        try {
+            const credentials = loadImapBasicCredentials();
+            if (!credentials) {
+                redirectForInvalidImapCredentials();
+                return;
+            }
+            const auth = encodeImapBasicAuthorization(
+                credentials.account,
+                credentials.password
+            );
+            const response = await fetch(`/api/mails/${id}/retry-analysis`, {
+                method: "POST",
+                headers: { authorization: auth },
+            });
+            if (response.status === 401) {
+                redirectForInvalidImapCredentials();
+                return;
+            }
+            try {
+                await refresh();
+            } catch {
+                /* refresh error is non-fatal */
+            }
+        } catch {
+            /* network error is non-fatal */
+        } finally {
+            retryingRef.current.delete(id);
+        }
+    };
+
     const visibleMailItems = (items ?? []).filter((item) => {
         if (activeMailbox === "review") {
             return item.status === "ready" && item.analysis !== null;
@@ -880,6 +915,26 @@ export default function Home() {
                                                     ? "발송 대기"
                                                     : statusLabel(item.status)}
                                             </span>
+                                            {item.status === "failed" ? (
+                                                <button
+                                                    className="btn btn-ghost btn-xs mt-1"
+                                                    disabled={retryingRef.current.has(
+                                                        item.id
+                                                    )}
+                                                    onClick={() => {
+                                                        void handleRetryAnalysis(
+                                                            item.id
+                                                        );
+                                                    }}
+                                                    type="button"
+                                                >
+                                                    {retryingRef.current.has(
+                                                        item.id
+                                                    )
+                                                        ? "재시도 중..."
+                                                        : "재분석"}
+                                                </button>
+                                            ) : null}
                                             <p className="mt-2 text-xs text-base-content/50">
                                                 수신 ·{" "}
                                                 {item.receivedAt

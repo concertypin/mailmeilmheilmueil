@@ -7,6 +7,8 @@ import {
     toMailApiItem,
 } from "../../src/lib/mail-schema";
 import { firestoreRepository, type MailRepository } from "./repository";
+import { processMailItem, type MailAnalyzer } from "./processor";
+import { analyzeMail } from "./analysis";
 import { parseImapBasicAuthorization } from "./basic-auth";
 import {
     syncInbox,
@@ -30,6 +32,7 @@ export type RouteDependencies = {
     repository?: MailRepository;
     sync?: SyncFn;
     testCredentials?: TestCredentialsFn;
+    analyzer?: MailAnalyzer;
 };
 
 async function defaultTestCredentials(
@@ -270,6 +273,33 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 return context.json(toMailApiItem(created), 201);
             } catch {
                 return context.json({ error: "Failed to send mail" }, 500);
+            }
+        })
+
+        .post("/api/mails/:id/retry-analysis", async (context) => {
+            const id = context.req.param("id");
+            try {
+                const analyzer: MailAnalyzer =
+                    dependencies.analyzer ?? analyzeMail;
+                const result = await processMailItem(id, repository, analyzer);
+                const item = await repository.get(id);
+                if (!item) {
+                    return context.json({ error: "Mail not found" }, 404);
+                }
+                return context.json(
+                    { status: result, mail: toMailApiItem(item) },
+                    result === "ready" ? 200 : 500
+                );
+            } catch (error: unknown) {
+                return context.json(
+                    {
+                        error:
+                            error instanceof Error
+                                ? error.message
+                                : "Analysis failed",
+                    },
+                    500
+                );
             }
         });
 }
