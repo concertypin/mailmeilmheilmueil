@@ -17,7 +17,7 @@ import type {
 } from "@/lib/contact-book";
 import { resolveRecipients } from "@/lib/contact-book";
 import {
-    encodeImapBasicAuthorization,
+    buildImapHeaders,
     loadImapBasicCredentials,
     redirectForInvalidImapCredentials,
     throwIfUnauthorized,
@@ -157,15 +157,11 @@ export default function Compose() {
 
         try {
             const to = resolved.to.map((c) => c.email);
-            const bcc = resolved.bcc.map((c) => c.email);
             const response = await fetch("/api/compose", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    authorization: encodeImapBasicAuthorization(
-                        credentials.account,
-                        credentials.password
-                    ),
+                    ...buildImapHeaders(credentials),
                 },
                 body: JSON.stringify({
                     to: to.length > 0 ? to : undefined,

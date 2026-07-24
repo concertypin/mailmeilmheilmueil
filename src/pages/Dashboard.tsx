@@ -7,7 +7,7 @@ import {
 import { Link } from "wouter";
 import { useMailData } from "@/lib/mail-data";
 import {
-    encodeImapBasicAuthorization,
+    buildImapHeaders,
     loadImapBasicCredentials,
 } from "@/lib/imap-basic";
 import { type MailItem } from "@/lib/mail-schema";
@@ -55,13 +55,10 @@ export default function Dashboard() {
         try {
             const credentials = loadImapBasicCredentials();
             if (!credentials) return;
-            const authHeader = encodeImapBasicAuthorization(
-                credentials.account,
-                credentials.password
-            );
+            const headers = buildImapHeaders(credentials);
             const res = await fetch("/api/sync", {
                 method: "POST",
-                headers: { authorization: authHeader },
+                headers,
             });
             if (!res.ok) {
                 const body: unknown = await res.json().catch(() => null);
