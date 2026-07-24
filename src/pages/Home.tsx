@@ -453,6 +453,14 @@ export default function Home() {
                                             className="absolute right-0 top-full z-10 mt-2 w-[calc(100vw-2.5rem)] max-w-md border border-base-300 bg-base-200 shadow-sm card"
                                         >
                                             <div className="card-body grid gap-5 p-5 sm:grid-cols-2">
+                                                <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3">
+                                                    <h3 className="font-semibold">
+                                                        기본 필터
+                                                    </h3>
+                                                    <span className="text-xs text-base-content/55">
+                                                        보낸사람과 수신일
+                                                    </span>
+                                                </div>
                                                 <label className="fieldset">
                                                     <span className="label">
                                                         보낸사람
@@ -506,6 +514,11 @@ export default function Home() {
                                                         />
                                                     </div>
                                                 </fieldset>
+                                                <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3 pt-2">
+                                                    <h3 className="font-semibold">
+                                                        분류
+                                                    </h3>
+                                                </div>
                                                 <div className="sm:col-span-2">
                                                     <label className="fieldset">
                                                         <span className="label">
@@ -549,7 +562,14 @@ export default function Home() {
                                                         </select>
                                                     </label>
                                                 </div>
-                                                <div className="card-actions sm:col-span-2 mt-1 items-center justify-end border-t border-base-300 pt-4">
+                                                <div className="card-actions mt-1 items-center justify-between border-t border-base-300 pt-4 sm:col-span-2">
+                                                    <p className="text-sm text-base-content/60">
+                                                        검색 결과{" "}
+                                                        {
+                                                            filteredMailItems.length
+                                                        }
+                                                        개
+                                                    </p>
                                                     <button
                                                         className="btn btn-ghost btn-sm"
                                                         onClick={() => {

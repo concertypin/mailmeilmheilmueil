@@ -89,6 +89,10 @@ test("opens the filter panel and resets filters", async () => {
     await user.click(filterButton);
     expect(filterButton).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("dialog", { name: "고급 필터" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "기본 필터" })).toBeVisible();
+    expect(screen.getByText("보낸사람과 수신일")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "분류" })).toBeVisible();
+    expect(screen.getByText("검색 결과 2개")).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "보낸사람" })).toBeVisible();
     expect(screen.getByLabelText("수신일 시작일")).toBeVisible();
     expect(screen.getByLabelText("수신일 종료일")).toBeVisible();
@@ -107,6 +111,7 @@ test("opens the filter panel and resets filters", async () => {
         screen.queryByText("2026학년도 비교과 프로그램 참가자 모집")
     ).toBeNull();
     expect(screen.getByText("1 / 2")).toBeVisible();
+    expect(screen.getByText("검색 결과 1개")).toBeVisible();
 
     // Fill sender and date controls with nonempty values
     await user.type(
@@ -130,6 +135,7 @@ test("opens the filter panel and resets filters", async () => {
         screen.getByText("2026 하계 데이터 분석 직업훈련 참가자 모집")
     ).toBeVisible();
     expect(screen.getByText("2 / 2")).toBeVisible();
+    expect(screen.getByText("검색 결과 2개")).toBeVisible();
 
     // Toggle the same button again → popover closes
     await user.click(filterButton);
