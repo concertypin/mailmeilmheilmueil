@@ -18,11 +18,6 @@ export type AnalysisConfig = {
     apiKey: string | undefined;
 };
 
-/**
- * Resolves the analysis provider settings from environment variables.
- * Three separate model names: AI_ANALYSIS_MODEL, AI_DRAFT_MODEL, AI_COLLAB_MODEL.
- * Falls back to AI_MODEL for any unset model name.
- */
 export function analysisConfigFromEnv(
     environment: AnalysisEnvironment = process.env
 ): AnalysisConfig {
@@ -116,78 +111,55 @@ Keep it to 2-3 sentences. Write in Korean.`;
 const collabSystemPrompt = `You assist a university staff member in refining a promotional draft.
 The user provides a request. Modify the existing draft according to the request.
 Keep the tone warm and professional, suitable for a Korean university announcement.
-Respond in Korean.`;
+Respond in Korean with the revised draft only.`;
 
-function buildUserContent(
-    item: MailItem
-): Array<{ type: "text"; text: string } | { type: "image"; image: string }> {
-    const parts: Array<
-        { type: "text"; text: string } | { type: "image"; image: string }
-    > = [];
-
-    const textContent = [
+/** Analyze one stored mail — structured extraction. */
+export async function analyzeMail(item: MailItem): Promise<MailAnalysis> {
+    const model = pickModel(config.analysisModel);
+    const prompt = [
         "<untrusted-mail>",
         `sender: ${item.senderName} <${item.senderAddress}>`,
         `recipients: ${item.recipients.join(", ")}`,
         `subject: ${item.subject}`,
         "plain-text body:",
         item.textBody,
-    ];
-
-    if (item.htmlBody) {
-        textContent.push("\nhtml body:");
-        textContent.push(item.htmlBody);
-    }
-
-    textContent.push("</untrusted-mail>");
-    parts.push({ type: "text", text: textContent.join("\n") });
-
-    // If htmlBody contains images, extract inline images
-    // Note: Full image extraction from raw email requires the original MIME data.
-    // For now, pass the htmlBody as text — the vision model can process any
-    // embedded base64 images or URLs.
-
-    return parts;
-}
-
-/** Analyze one stored mail — structured extraction only (no draft). */
-export async function analyzeMail(item: MailItem): Promise<MailAnalysis> {
-    const model = pickModel(config.analysisModel);
+        item.htmlBody ? `\nhtml body:\n${item.htmlBody}` : "",
+        "</untrusted-mail>",
+    ]
+        .filter(Boolean)
+        .join("\n");
     const result = await generateText({
         model,
         instructions: analysisSystemPrompt,
-        messages: [{ role: "user", content: buildUserContent(item) }],
+        prompt,
     });
     return MailAnalysisSchema.parse(JSON.parse(result.text));
 }
 
-/**
- * Generate a Korean promotional draft using the analysis model output.
- * Returns the draft text (textual, not structured).
- */
+/** Generate a Korean promotional draft from analysis data. */
 export async function generateDraft(
     item: MailItem,
     analysis: MailAnalysis
 ): Promise<string> {
     const model = pickModel(config.draftModel);
     const prompt = [
-        "Based on the following email and its analysis, write a promotional draft.",
+        "Based on this email analysis, write a Korean promotional draft.",
         "",
         "--- Email ---",
-        `subject: ${item.subject}`,
-        `sender: ${item.senderName}`,
-        `body: ${item.textBody}`,
+        `Subject: ${item.subject}`,
+        `Sender: ${item.senderName}`,
+        `Body: ${item.textBody}`,
         "",
         "--- Analysis ---",
-        `category: ${analysis.category}`,
-        `audience: ${analysis.audience ?? "general"}`,
-        `schedule: ${analysis.schedule ?? "not specified"}`,
-        `deadline: ${analysis.applicationDeadline ?? "not specified"}`,
-        `benefits: ${analysis.benefits ?? "not specified"}`,
-        `method: ${analysis.applicationMethod ?? "not specified"}`,
-        `contact: ${analysis.contactOrReference ?? "not specified"}`,
+        `Category: ${analysis.category}`,
+        `Target: ${analysis.audience ?? "General"}`,
+        `Period: ${analysis.schedule ?? "Not specified"}`,
+        `Deadline: ${analysis.applicationDeadline ?? "Not specified"}`,
+        `Benefits: ${analysis.benefits ?? "Not specified"}`,
+        `How to apply: ${analysis.applicationMethod ?? "Not specified"}`,
+        `Contact: ${analysis.contactOrReference ?? "Not specified"}`,
         "",
-        "Write a concise Korean promotional draft (2-3 sentences) using only verified facts.",
+        "Write 2-3 Korean sentences. Include key details. Be warm and professional.",
     ].join("\n");
 
     const result = await generateText({
@@ -198,10 +170,7 @@ export async function generateDraft(
     return result.text.trim();
 }
 
-/**
- * Refine a promotional draft based on user request (textual-only, cheap model).
- * Used by the collaboration panel for draft rewriting.
- */
+/** Refine a draft based on user request (textual-only model). */
 export async function generateCollabResponse(
     currentDraft: string,
     userRequest: string
