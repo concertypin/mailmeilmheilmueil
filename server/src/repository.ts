@@ -45,17 +45,28 @@ function isAlreadyExistsError(error: unknown): boolean {
         Reflect.get(error, "code") === "ALREADY_EXISTS"
     );
 }
+function stripUndefined<T extends Record<string, unknown>>(
+    obj: T
+): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const key of Object.keys(obj)) {
+        if (obj[key] !== undefined) {
+            result[key] = obj[key];
+        }
+    }
+    return result;
+}
 
 export const firestoreRepository: MailRepository = {
     async create(item) {
-        const ref = await db.collection("mailItems").add(item);
+        const ref = await db.collection("mailItems").add(stripUndefined(item));
         return ref.id;
     },
     async createIfAbsent(item, idempotencyKey) {
         const id = createHash("sha256").update(idempotencyKey).digest("hex");
         const ref = db.collection("mailItems").doc(id);
         try {
-            await ref.create(item);
+            await ref.create(stripUndefined(item));
             return { id, created: true };
         } catch (error) {
             if (isAlreadyExistsError(error)) {
@@ -71,7 +82,7 @@ export const firestoreRepository: MailRepository = {
             : null;
     },
     async update(id, update) {
-        await db.collection("mailItems").doc(id).update(update);
+        await db.collection("mailItems").doc(id).update(stripUndefined(update));
     },
     async list() {
         const snapshot = await db
