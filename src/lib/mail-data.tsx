@@ -8,7 +8,12 @@ import {
     useRef,
     useState,
 } from "react";
-import { fromMailApiItem, MailApiItemSchema, SendReviewedMailResponseSchema, type MailItem } from "@/lib/mail-schema";
+import {
+    fromMailApiItem,
+    MailApiItemSchema,
+    SendReviewedMailResponseSchema,
+    type MailItem,
+} from "@/lib/mail-schema";
 import {
     buildImapHeaders,
     loadImapBasicCredentials,
@@ -20,11 +25,11 @@ export interface MailDataSource {
     list(): Promise<MailItem[]>;
     get(id: string): Promise<MailItem | null>;
     review(item: MailItem, promotionDraft: string): Promise<MailItem>;
-    sendReviewed(
+    sendReviewed?: (
         item: MailItem,
         bcc: string[],
         authorization: string
-    ): Promise<{ source: MailItem; sent: MailItem }>;
+    ) => Promise<{ source: MailItem; sent: MailItem }>;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -241,6 +246,11 @@ export function MailDataProvider({
 
     const sendReviewed = useCallback(
         async (item: MailItem, bcc: string[], authorization: string) => {
+            if (!resolvedSource.sendReviewed) {
+                throw new Error(
+                    "This mail data source cannot send reviewed mail."
+                );
+            }
             const result = await resolvedSource.sendReviewed(
                 item,
                 bcc,

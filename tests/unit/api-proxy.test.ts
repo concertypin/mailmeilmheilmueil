@@ -160,6 +160,9 @@ it.concurrent(
             draft: "Promotion draft",
         };
 
+        if (!source.sendReviewed) {
+            throw new Error("Attached source must implement sendReviewed.");
+        }
         const result = await source.sendReviewed(
             item,
             ["student@example.invalid"],
@@ -169,7 +172,6 @@ it.concurrent(
             "/api/mails/reviewed-1/send",
             expect.objectContaining({
                 method: "POST",
-                // oxlint-disable-next-line typescript/no-unsafe-assignment
                 headers: expect.objectContaining({
                     authorization: authHeaderValue,
                     "Content-Type": "application/json",

@@ -18,7 +18,10 @@ import {
 } from "./criteria";
 import { analyzeMail, collabModelConfig, pickModel } from "./analysis";
 import { processMailItem, type MailAnalyzer } from "./processor";
-import { parseImapCredentialsFromRequest } from "./basic-auth";
+import {
+    parseImapBasicAuthorization,
+    parseImapCredentialsFromRequest,
+} from "./basic-auth";
 import {
     createImapClient,
     isAuthenticationFailure,
