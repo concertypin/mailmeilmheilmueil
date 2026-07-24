@@ -139,7 +139,7 @@ export default function Landing() {
                     account: fullAccount,
                     password,
                 });
-                setLocation("/inbox");
+                setLocation("/dashboard");
                 return;
             }
 
@@ -178,7 +178,7 @@ export default function Landing() {
                 throw new Error("Invalid test account response");
             }
             saveImapBasicCredentials(parsed.data);
-            setLocation("/inbox");
+            setLocation("/dashboard");
         } catch {
             setLoginError("테스트 계정 로그인에 실패했습니다");
         } finally {

@@ -12,7 +12,7 @@ export default function App({ children }: AppProps) {
             <header className="border-b border-base-300 bg-base-100">
                 <div className="navbar">
                     <div className="navbar-start">
-                        <Link className="text-xl font-bold" href="/inbox">
+                        <Link className="text-xl font-bold" href="/dashboard">
                             메일렌즈
                         </Link>
                         <span className="ml-4 text-sm text-base-content/60">
