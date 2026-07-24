@@ -3,13 +3,18 @@ import { z } from "zod";
 interface ImapCredentials {
     account: string;
     password: string;
+    host?: string;
+    port?: number;
+    secure?: boolean;
 }
 
 export const IMAP_BASIC_STORAGE_KEY = "mailmeilmheilmueil.imap-basic.v1";
-
 const StoredCredentialsSchema = z.object({
     account: z.string().min(1),
     password: z.string().min(1),
+    host: z.string().optional(),
+    port: z.number().int().positive().max(65535).optional(),
+    secure: z.boolean().optional(),
 });
 
 function utf8ToBase64(input: string): string {
@@ -26,6 +31,23 @@ export function encodeImapBasicAuthorization(
     return `Basic ${encoded}`;
 }
 
+export function buildImapHeaders(
+    credentials: ImapCredentials
+): Record<string, string> {
+    const headers: Record<string, string> = {
+        authorization: encodeImapBasicAuthorization(
+            credentials.account,
+            credentials.password
+        ),
+    };
+    if (credentials.host) headers["x-imap-host"] = credentials.host;
+    if (credentials.port !== undefined)
+        headers["x-imap-port"] = String(credentials.port);
+    if (credentials.secure !== undefined)
+        headers["x-imap-secure"] = String(credentials.secure);
+    return headers;
+}
+
 export function loadImapBasicCredentials(
     storage?: Storage
 ): ImapCredentials | null {
@@ -39,7 +61,14 @@ export function loadImapBasicCredentials(
             target.removeItem(IMAP_BASIC_STORAGE_KEY);
             return null;
         }
-        return result.data;
+        const d = result.data;
+        return {
+            account: d.account,
+            password: d.password,
+            ...(d.host ? { host: d.host } : {}),
+            ...(d.port !== undefined ? { port: d.port } : {}),
+            ...(d.secure !== undefined ? { secure: d.secure } : {}),
+        };
     } catch {
         try {
             const target = storage ?? window.sessionStorage;

@@ -52,6 +52,7 @@ function sampleItem(status: MailItem["status"] = "queued"): MailItem {
         reviewedAt: null,
         failureMessage: null,
         analysis: status === "ready" || status === "reviewed" ? analysis : null,
+        images: undefined,
         draft: null,
     };
 }
@@ -274,12 +275,13 @@ describe("MailAnalysisSchema", () => {
 
 describe("mail parsing and processing", () => {
     it("normalizes RFC 822 text and HTML-only messages", async () => {
-        const item = await parseMailSource(rawMessage);
+        const { item, images } = await parseMailSource(rawMessage);
         expect(item.senderAddress).toBe("notice@example.invalid");
         expect(item.recipients).toEqual(["promotion@example.invalid"]);
         expect(item.subject).toBe("IMAP 테스트");
         expect(item.textBody).toBe("IMAP 본문입니다.");
         expect(item.externalMessageId).toBe("<imap@example.invalid>");
+        expect(images).toEqual([]);
 
         const html = Buffer.from(
             [
@@ -291,9 +293,11 @@ describe("mail parsing and processing", () => {
                 "<html><body><h1>모집 안내</h1><p>HTML 본문입니다.</p></body></html>",
             ].join("\r\n")
         );
-        const htmlItem = await parseMailSource(html);
+        const { item: htmlItem, images: htmlImages } =
+            await parseMailSource(html);
         expect(htmlItem.textBody).toContain("모집 안내");
         expect(htmlItem.textBody).toContain("HTML 본문입니다.");
+        expect(htmlImages).toEqual([]);
     });
 
     it("transitions queued mail to ready with injected analysis", async () => {
@@ -319,6 +323,56 @@ describe("mail parsing and processing", () => {
         );
         expect(repository.item.analysis).toBeNull();
     });
+
+    it("accepts an image-only RFC 822 message with no text body", async () => {
+        const pngBase64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        const pngBytes = Buffer.from(pngBase64, "base64");
+        const imageOnlyRaw = Buffer.from(
+            [
+                "From: sender@example.invalid",
+                "To: recipient@example.invalid",
+                "Subject: Image-only promo",
+                "MIME-Version: 1.0",
+                'Content-Type: multipart/mixed; boundary="==BOUNDARY=="',
+                "",
+                "--==BOUNDARY==",
+                "Content-Type: image/png",
+                "Content-Transfer-Encoding: base64",
+                "Content-Disposition: inline",
+                "",
+                pngBase64,
+                "--==BOUNDARY==--",
+            ].join("\r\n")
+        );
+        const { item, images } = await parseMailSource(imageOnlyRaw);
+        expect(item.textBody).toBe("");
+        expect(item.images).toHaveLength(1);
+        expect(item.images![0]!.data).toBe(pngBase64);
+        expect(item.images![0]!.mediaType).toBe("image/png");
+        expect(item.subject).toBe("Image-only promo");
+        expect(item.senderAddress).toBe("sender@example.invalid");
+        expect(images).toHaveLength(1);
+        expect(images[0]!.mediaType).toBe("image/png");
+        expect(new Uint8Array(images[0]!.data)).toEqual(
+            new Uint8Array(pngBytes)
+        );
+    });
+
+    it("rejects a bodyless message with no image attachments", async () => {
+        const noContent = Buffer.from(
+            [
+                "From: sender@example.invalid",
+                "To: recipient@example.invalid",
+                "Subject: No content",
+                "",
+                "   ",
+            ].join("\r\n")
+        );
+        await expect(parseMailSource(noContent)).rejects.toThrow(
+            "Message has no usable text body or image attachment"
+        );
+    });
 });
 
 describe("IMAP synchronization", () => {
@@ -339,6 +393,9 @@ describe("IMAP synchronization", () => {
         expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
         expect(analyzed).toBe(1);
         expect(repository.items.get("mail-1")?.status).toBe("ready");
+        expect(repository.items.get("mail-1")?.mailboxAccount).toBe(
+            "inbox@example.invalid"
+        );
         expect(client.locks[0]).toEqual({
             path: "INBOX",
             options: { readOnly: false, acquireTimeout: 30000 },
@@ -509,8 +566,47 @@ describe("IMAP synchronization", () => {
         ).rejects.toBeInstanceOf(ImapUnavailableError);
         expect(client.flagCalls).toEqual([]);
     });
-});
 
+    it("imports an image-only message and stores images in the item", async () => {
+        const pngBase64 =
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        const imageOnlyRaw = Buffer.from(
+            [
+                "From: sender@example.invalid",
+                "To: recipient@example.invalid",
+                "Subject: Image-only promo",
+                "MIME-Version: 1.0",
+                'Content-Type: multipart/mixed; boundary="==BOUNDARY=="',
+                "",
+                "--==BOUNDARY==",
+                "Content-Type: image/png",
+                "Content-Transfer-Encoding: base64",
+                "Content-Disposition: inline",
+                "",
+                pngBase64,
+                "--==BOUNDARY==--",
+            ].join("\r\n")
+        );
+        const client = new FakeImapClient([
+            { seq: 901, uid: 901, source: imageOnlyRaw },
+        ]);
+        const repository = new SyncRepository();
+        const result = await syncInbox(
+            { account: "inbox@example.invalid", password: "secret" },
+            repository,
+            () => Promise.resolve(analysis),
+            () => client
+        );
+        expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
+        const stored = repository.items.get("mail-1");
+        expect(stored?.status).toBe("ready");
+        expect(stored?.textBody).toBe("");
+        expect(stored?.images).toHaveLength(1);
+        expect(stored?.images![0]!.data).toBe(pngBase64);
+        expect(stored?.images![0]!.mediaType).toBe("image/png");
+        expect(stored?.analysis).toEqual(analysis);
+    });
+});
 describe("Heroku Scheduler sync configuration", () => {
     it("passes the configured mailbox credentials to the sync runner", async () => {
         let received: { account: string; password: string } | undefined;

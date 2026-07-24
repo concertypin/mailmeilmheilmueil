@@ -122,6 +122,7 @@ export default function Landing() {
         if (!canSubmit) return;
         setShowInvalidAlert(false);
         setIsSubmitting(true);
+        clearImapBasicCredentials();
         setLoginError(null);
 
         try {
@@ -161,6 +162,7 @@ export default function Landing() {
         }
     };
     const handleTestLogin = async () => {
+        clearImapBasicCredentials();
         setIsSubmitting(true);
         setLoginError(null);
         try {
@@ -172,12 +174,29 @@ export default function Landing() {
             }
             const body: unknown = await response.json();
             const parsed = z
-                .object({ account: z.string(), password: z.string() })
+                .object({
+                    account: z.string(),
+                    password: z.string(),
+                    host: z.string().optional(),
+                    port: z.number().optional(),
+                    secure: z.boolean().optional(),
+                })
                 .safeParse(body);
             if (!parsed.success) {
                 throw new Error("Invalid test account response");
             }
-            saveImapBasicCredentials(parsed.data);
+            const parsedData = parsed.data;
+            saveImapBasicCredentials({
+                account: parsedData.account,
+                password: parsedData.password,
+                ...(parsedData.host ? { host: parsedData.host } : {}),
+                ...(parsedData.port !== undefined
+                    ? { port: parsedData.port }
+                    : {}),
+                ...(parsedData.secure !== undefined
+                    ? { secure: parsedData.secure }
+                    : {}),
+            });
             setLocation("/dashboard");
         } catch {
             setLoginError("테스트 계정 로그인에 실패했습니다");

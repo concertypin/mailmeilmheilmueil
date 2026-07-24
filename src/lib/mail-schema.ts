@@ -52,8 +52,14 @@ export const MailAnalysisSchema = z.object({
 });
 export type MailAnalysis = z.infer<typeof MailAnalysisSchema>;
 
+const MailImageSchema = z.object({
+    data: z.string(), // base64-encoded image bytes
+    mediaType: z.string(),
+});
+
 export const MailItemSchema = z.object({
     id: z.string(),
+    mailboxAccount: z.string().optional(),
     senderName: z.string(),
     senderAddress: z.string(),
     recipients: z.array(z.string()),
@@ -70,6 +76,7 @@ export const MailItemSchema = z.object({
     failureMessage: z.string().nullable(),
     analysis: MailAnalysisSchema.nullable(),
     draft: z.string().nullable().optional(),
+    images: z.array(MailImageSchema).optional(),
     isImportant: z.boolean().optional(),
 });
 
@@ -81,7 +88,7 @@ export const MailApiItemSchema = MailItemSchema.extend({
     receivedAt: mailApiTimestampSchema,
     processedAt: mailApiTimestampSchema.nullable(),
     reviewedAt: mailApiTimestampSchema.nullable(),
-});
+}).omit({ images: true });
 
 export type MailApiItem = z.infer<typeof MailApiItemSchema>;
 

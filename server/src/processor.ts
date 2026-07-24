@@ -9,7 +9,6 @@ export type DraftGenerator = (item: MailItem, analysis: MailAnalysis) => string;
 export const AI_FAILURE_MESSAGE =
     "AI 분석에 실패했습니다. 테스트 메일을 다시 보내 주세요.";
 
-/** Process one queued mail: analyze → generate draft → update repository. */
 export async function processMailItem(
     id: string,
     repository: MailRepository = firestoreRepository,

@@ -12,7 +12,7 @@ import type {
 } from "@/lib/contact-book";
 import { resolveRecipients } from "@/lib/contact-book";
 import {
-    encodeImapBasicAuthorization,
+    buildImapHeaders,
     loadImapBasicCredentials,
     redirectForInvalidImapCredentials,
     throwIfUnauthorized,
@@ -157,10 +157,7 @@ export default function Compose() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    authorization: encodeImapBasicAuthorization(
-                        credentials.account,
-                        credentials.password
-                    ),
+                    ...buildImapHeaders(credentials),
                 },
                 body: JSON.stringify({
                     to: to.length > 0 ? to : undefined,
