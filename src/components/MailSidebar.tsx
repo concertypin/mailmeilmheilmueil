@@ -121,7 +121,7 @@ export default function MailSidebar({
     return (
         <aside className="border-b border-base-300 bg-base-200 p-3 lg:border-b-0 lg:border-r">
             <Link
-                className="btn btn-primary btn-sm w-full justify-start"
+                className={`btn btn-primary btn-sm w-full justify-start ${activePage === "compose" ? "active" : ""}`}
                 href="/compose"
             >
                 <PencilSimpleIcon aria-hidden="true" size={18} weight="bold" />
