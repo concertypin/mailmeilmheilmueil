@@ -10,6 +10,7 @@ import {
 import { Link, useSearchParams } from "wouter";
 import { useMailData } from "@/lib/mail-data";
 import {
+    buildImapHeaders,
     encodeImapBasicAuthorization,
     loadImapBasicCredentials,
     redirectForInvalidImapCredentials,
@@ -79,13 +80,10 @@ export default function Home() {
         setSyncMessage(null);
         setSyncMessageKind(null);
         try {
-            const auth = encodeImapBasicAuthorization(
-                credentials.account,
-                credentials.password
-            );
+            const headers = buildImapHeaders(credentials);
             const response = await fetch("/api/sync", {
                 method: "POST",
-                headers: { authorization: auth },
+                headers,
             });
             if (!response.ok) {
                 if (response.status === 401) {
