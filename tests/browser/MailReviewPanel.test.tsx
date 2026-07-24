@@ -4,11 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
 import MailReviewPanel from "@/components/MailReviewPanel";
 import { readyItem } from "@test/utils/test-data";
+import { AnalysisCriteriaProvider } from "@/lib/analysis-criteria-data";
 
 test("shows original mail, structured analysis, draft, warning, and review action", async () => {
     const user = userEvent.setup();
     render(
-        <MailReviewPanel item={readyItem} onReview={() => Promise.resolve()} />
+        <AnalysisCriteriaProvider>
+            <MailReviewPanel
+                item={readyItem}
+                onReview={() => Promise.resolve()}
+            />
+        </AnalysisCriteriaProvider>
     );
     expect(screen.getByText("미래직업교육원", { exact: false })).toBeVisible();
     expect(
@@ -17,7 +23,6 @@ test("shows original mail, structured analysis, draft, warning, and review actio
         })
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: /AI 분석 결과/ }));
-    expect(screen.getByText("직업훈련")).toBeVisible();
     expect(screen.getByText("2026-07-31")).toBeVisible();
     expect(screen.getByText("교육비 전액 지원, 수료증 발급")).toBeVisible();
     expect(screen.getByText("온라인 신청")).toBeVisible();

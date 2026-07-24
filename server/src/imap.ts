@@ -8,7 +8,10 @@ import { analyzeMail } from "./analysis";
 import { parseMailSource, type ParsedMailSource } from "./mail-parser";
 import { processMailItem, type MailAnalyzer } from "./processor";
 import { firestoreRepository, type MailRepository } from "./repository";
-
+import {
+    DEFAULT_ANALYSIS_FIELDS,
+    type AnalysisField,
+} from "../../src/lib/mail-schema";
 export type ImapCredentials = {
     account: string;
     password: string;
@@ -67,6 +70,12 @@ export type ImapClient = {
 };
 
 export type ImapClientFactory = (credentials: ImapCredentials) => ImapClient;
+
+export type SyncInboxOptions = {
+    fields?: readonly AnalysisField[];
+    analyzer?: MailAnalyzer;
+    clientFactory?: ImapClientFactory;
+};
 
 function requiredImapValue(
     environment: ImapEnvironment,
@@ -170,9 +179,11 @@ function validInternalDate(
 export async function syncInbox(
     credentials: ImapCredentials,
     repository: MailRepository = firestoreRepository,
-    analyzer: MailAnalyzer = analyzeMail,
-    clientFactory: ImapClientFactory = createImapClient
+    options: SyncInboxOptions = {}
 ): Promise<ImapSyncResult> {
+    const fields = options.fields ?? DEFAULT_ANALYSIS_FIELDS;
+    const analyzer = options.analyzer ?? analyzeMail;
+    const clientFactory = options.clientFactory ?? createImapClient;
     const client = clientFactory(credentials);
     let lock: Awaited<ReturnType<ImapClient["getMailboxLock"]>> | undefined;
     try {
@@ -237,7 +248,10 @@ export async function syncInbox(
             if (inserted.created) {
                 result.imported += 1;
                 try {
-                    await processMailItem(inserted.id, repository, analyzer);
+                    await processMailItem(inserted.id, repository, {
+                        fields,
+                        analyzer,
+                    });
                 } catch {
                     /* AI analysis failure is non-fatal */
                 }
@@ -254,11 +268,10 @@ export async function syncInbox(
                 }
                 if (existing?.status === "failed") {
                     try {
-                        await processMailItem(
-                            inserted.id,
-                            repository,
-                            analyzer
-                        );
+                        await processMailItem(inserted.id, repository, {
+                            fields,
+                            analyzer,
+                        });
                     } catch {
                         /* retry AI analysis failure is non-fatal */
                     }

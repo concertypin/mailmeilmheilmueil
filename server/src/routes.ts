@@ -9,35 +9,44 @@ import {
 } from "ai";
 import { Timestamp } from "firebase-admin/firestore";
 import {
+    AnalysisCriteriaSchema,
     ComposeRequestSchema,
     FlagMailRequestSchema,
+    resolveAnalysisFields,
     ReviewMailRequestSchema,
     toMailApiItem,
 } from "../../src/lib/mail-schema";
 import { firestoreRepository, type MailRepository } from "./repository";
+import {
+    firestoreAnalysisCriteriaRepository,
+    type AnalysisCriteriaRepository,
+} from "./criteria";
 import { analyzeMail, collabModelConfig, pickModel } from "./analysis";
 import { processMailItem, type MailAnalyzer } from "./processor";
 import { parseImapCredentialsFromRequest } from "./basic-auth";
 import {
-    syncInbox,
     createImapClient,
     isAuthenticationFailure,
     ImapConfigurationError,
     ImapCredentialError,
     ImapUnavailableError,
+    syncInbox,
     type ImapCredentials,
     type ImapSyncResult,
+    type SyncInboxOptions,
 } from "./imap";
 
 export type SyncFn = (
     credentials: ImapCredentials,
-    repository: MailRepository
+    repository: MailRepository,
+    options?: SyncInboxOptions
 ) => Promise<ImapSyncResult>;
 
 export type TestCredentialsFn = (credentials: ImapCredentials) => Promise<void>;
 
 export type RouteDependencies = {
     repository?: MailRepository;
+    criteriaRepository?: AnalysisCriteriaRepository;
     sync?: SyncFn;
     testCredentials?: TestCredentialsFn;
     analyzer?: MailAnalyzer;
@@ -55,6 +64,8 @@ async function defaultTestCredentials(
 }
 export function createRoutes(dependencies: RouteDependencies = {}) {
     const repository = dependencies.repository ?? firestoreRepository;
+    const criteriaRepository =
+        dependencies.criteriaRepository ?? firestoreAnalysisCriteriaRepository;
     return new Hono()
         .get("/healthz", (context) => context.json({ status: "ok" }))
         .post("/api/login", async (context) => {
@@ -118,6 +129,69 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 );
             }
         })
+        .get("/api/analysis-criteria", async (context) => {
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization")
+            );
+            if (!credentials) {
+                return context.json(
+                    { error: "IMAP credentials are required" },
+                    401,
+                    { "WWW-Authenticate": 'Basic realm="IMAP"' }
+                );
+            }
+            try {
+                const criteria = await criteriaRepository.get(
+                    credentials.account
+                );
+                return context.json(criteria);
+            } catch {
+                return context.json(
+                    { error: "Failed to load analysis criteria" },
+                    500
+                );
+            }
+        })
+        .put("/api/analysis-criteria", async (context) => {
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization")
+            );
+            if (!credentials) {
+                return context.json(
+                    { error: "IMAP credentials are required" },
+                    401,
+                    { "WWW-Authenticate": 'Basic realm="IMAP"' }
+                );
+            }
+            let body: unknown;
+            try {
+                body = await context.req.json();
+            } catch {
+                return context.json(
+                    { error: "Invalid analysis criteria" },
+                    400
+                );
+            }
+            const parsed = AnalysisCriteriaSchema.safeParse(body);
+            if (!parsed.success) {
+                return context.json(
+                    { error: "Invalid analysis criteria" },
+                    400
+                );
+            }
+            try {
+                const saved = await criteriaRepository.save(
+                    credentials.account,
+                    parsed.data
+                );
+                return context.json(saved);
+            } catch {
+                return context.json(
+                    { error: "Failed to save analysis criteria" },
+                    500
+                );
+            }
+        })
         .post("/api/sync", async (context) => {
             const credentials = parseImapCredentialsFromRequest(
                 context.req.header("authorization"),
@@ -138,8 +212,12 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 );
             }
             try {
+                const criteria = await criteriaRepository.get(
+                    credentials.account
+                );
+                const fields = resolveAnalysisFields(criteria);
                 const sync = dependencies.sync ?? syncInbox;
-                const result = await sync(credentials, repository);
+                const result = await sync(credentials, repository, { fields });
                 return context.json(result);
             } catch (error: unknown) {
                 if (error instanceof ImapCredentialError) {
@@ -329,10 +407,27 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
 
         .post("/api/mails/:id/retry-analysis", async (context) => {
             const id = context.req.param("id");
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization")
+            );
+            if (!credentials) {
+                return context.json(
+                    { error: "IMAP credentials are required" },
+                    401,
+                    { "WWW-Authenticate": 'Basic realm="IMAP"' }
+                );
+            }
             try {
+                const criteria = await criteriaRepository.get(
+                    credentials.account
+                );
+                const fields = resolveAnalysisFields(criteria);
                 const analyzer: MailAnalyzer =
                     dependencies.analyzer ?? analyzeMail;
-                const result = await processMailItem(id, repository, analyzer);
+                const result = await processMailItem(id, repository, {
+                    fields,
+                    analyzer,
+                });
                 const item = await repository.get(id);
                 if (!item) {
                     return context.json({ error: "Mail not found" }, 404);

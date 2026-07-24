@@ -1,6 +1,6 @@
 import type { FetchMessageObject } from "imapflow";
 import { Timestamp } from "firebase-admin/firestore";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
     MailAnalysisSchema,
     MailApiItemSchema,
@@ -8,6 +8,10 @@ import {
 } from "@/lib/mail-schema";
 import { parseMailSource } from "@server/mail-parser";
 import { processMailItem, type MailAnalyzer } from "@server/processor";
+import {
+    type AnalysisCriteriaRepository,
+    type AnalysisCriteria,
+} from "@server/criteria";
 import type { MailRepository, MailUpdate } from "@server/repository";
 import { createRoutes } from "@server/routes";
 import {
@@ -84,6 +88,20 @@ class FakeRepository implements MailRepository {
     }
     list(): Promise<MailItem[]> {
         return Promise.resolve([this.item]);
+    }
+}
+class FakeCriteriaRepository implements AnalysisCriteriaRepository {
+    get(_account: string): Promise<AnalysisCriteria> {
+        return Promise.resolve({
+            disabledDefaultKeys: [],
+            customFields: [],
+        });
+    }
+    save(
+        _account: string,
+        criteria: AnalysisCriteria
+    ): Promise<AnalysisCriteria> {
+        return Promise.resolve(criteria);
     }
 }
 
@@ -260,16 +278,19 @@ describe("MailAnalysisSchema", () => {
         expect(MailAnalysisSchema.parse(analysis)).toEqual(analysis);
     });
 
-    it("rejects invalid categories and dates", () => {
-        expect(() =>
-            MailAnalysisSchema.parse({ ...analysis, category: "뉴스" })
-        ).toThrow("invalid_value");
-        expect(() =>
-            MailAnalysisSchema.parse({
-                ...analysis,
-                applicationDeadline: "2026/07/31",
-            })
-        ).toThrow("Expected an ISO date");
+    it("accepts any string values for any keys", () => {
+        const result = MailAnalysisSchema.parse({
+            ...analysis,
+            category: "뉴스",
+            applicationDeadline: "2026/07/31",
+            customKey: "any_value",
+        });
+        expect(result.category).toBe("뉴스");
+        expect(result.applicationDeadline).toBe("2026/07/31");
+        expect(result.customKey).toBe("any_value");
+        expect(result.reviewNotes).toEqual([
+            "신청 페이지 주소와 문의처는 게시 전 확인 필요",
+        ]);
     });
 });
 
@@ -303,7 +324,7 @@ describe("mail parsing and processing", () => {
     it("transitions queued mail to ready with injected analysis", async () => {
         const repository = new FakeRepository();
         const analyzer: MailAnalyzer = () => Promise.resolve(analysis);
-        await processMailItem("mail-1", repository, analyzer);
+        await processMailItem("mail-1", repository, { analyzer });
         expect(repository.item.status).toBe("ready");
         expect(repository.item.analysis).toEqual(analysis);
         expect(repository.updates[0]).toMatchObject({ status: "processing" });
@@ -313,7 +334,7 @@ describe("mail parsing and processing", () => {
         const repository = new FakeRepository();
         const analyzer: MailAnalyzer = () =>
             Promise.reject(new Error("provider unavailable"));
-        await processMailItem("mail-1", repository, analyzer);
+        await processMailItem("mail-1", repository, { analyzer });
         expect(repository.item.status).toBe("failed");
         expect(repository.item.textBody).toBe(
             "모집 대상: 데이터 분석 직무에 관심 있는 대학생"
@@ -383,11 +404,13 @@ describe("IMAP synchronization", () => {
         const result = await syncInbox(
             { account: "inbox@example.invalid", password: "secret" },
             repository,
-            () => {
-                analyzed += 1;
-                return Promise.resolve(analysis);
-            },
-            () => client
+            {
+                analyzer: () => {
+                    analyzed += 1;
+                    return Promise.resolve(analysis);
+                },
+                clientFactory: () => client,
+            }
         );
 
         expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
@@ -422,20 +445,16 @@ describe("IMAP synchronization", () => {
         const secondClient = new FakeImapClient([message(701)]);
 
         expect(
-            await syncInbox(
-                credentials,
-                repository,
+            await syncInbox(credentials, repository, {
                 analyzer,
-                () => firstClient
-            )
+                clientFactory: () => firstClient,
+            })
         ).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
         expect(
-            await syncInbox(
-                credentials,
-                repository,
+            await syncInbox(credentials, repository, {
                 analyzer,
-                () => secondClient
-            )
+                clientFactory: () => secondClient,
+            })
         ).toEqual({ imported: 0, duplicates: 1, rejected: 0 });
         expect(analyzed).toBe(1);
         expect(repository.items.size).toBe(1);
@@ -459,20 +478,16 @@ describe("IMAP synchronization", () => {
         const secondClient = new FakeImapClient([message(801)], 100n);
 
         expect(
-            await syncInbox(
-                credentials,
-                repository,
+            await syncInbox(credentials, repository, {
                 analyzer,
-                () => firstClient
-            )
+                clientFactory: () => firstClient,
+            })
         ).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
         expect(
-            await syncInbox(
-                credentials,
-                repository,
+            await syncInbox(credentials, repository, {
                 analyzer,
-                () => secondClient
-            )
+                clientFactory: () => secondClient,
+            })
         ).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
         expect(analyzed).toBe(2);
         expect(repository.items.size).toBe(2);
@@ -487,13 +502,15 @@ describe("IMAP synchronization", () => {
         const firstResult = await syncInbox(
             { account: "inbox@example.invalid", password: "secret" },
             repository,
-            () => {
-                attempts += 1;
-                return attempts === 1
-                    ? Promise.reject(new Error("AI provider unavailable"))
-                    : Promise.resolve(analysis);
-            },
-            () => firstClient
+            {
+                analyzer: () => {
+                    attempts += 1;
+                    return attempts === 1
+                        ? Promise.reject(new Error("AI provider unavailable"))
+                        : Promise.resolve(analysis);
+                },
+                clientFactory: () => firstClient,
+            }
         );
         expect(firstResult).toEqual({
             imported: 1,
@@ -509,8 +526,10 @@ describe("IMAP synchronization", () => {
             await syncInbox(
                 { account: "inbox@example.invalid", password: "secret" },
                 repository,
-                () => Promise.resolve(analysis),
-                () => secondClient
+                {
+                    analyzer: () => Promise.resolve(analysis),
+                    clientFactory: () => secondClient,
+                }
             )
         ).toEqual({ imported: 0, duplicates: 1, rejected: 0 });
         expect(repository.items.get("mail-1")?.status).toBe("ready");
@@ -526,8 +545,10 @@ describe("IMAP synchronization", () => {
         const result = await syncInbox(
             { account: "inbox@example.invalid", password: "secret" },
             new SyncRepository(),
-            () => Promise.resolve(analysis),
-            () => client
+            {
+                analyzer: () => Promise.resolve(analysis),
+                clientFactory: () => client,
+            }
         );
 
         expect(result).toEqual({ imported: 0, duplicates: 0, rejected: 1 });
@@ -545,8 +566,10 @@ describe("IMAP synchronization", () => {
             syncInbox(
                 { account: "inbox@example.invalid", password: "secret" },
                 repository,
-                () => Promise.resolve(analysis),
-                () => client
+                {
+                    analyzer: () => Promise.resolve(analysis),
+                    clientFactory: () => client,
+                }
             )
         ).rejects.toBeInstanceOf(ImapUnavailableError);
         expect(client.flagCalls).toEqual([]);
@@ -560,8 +583,10 @@ describe("IMAP synchronization", () => {
             syncInbox(
                 { account: "inbox@example.invalid", password: "secret" },
                 new SyncRepository(),
-                () => Promise.resolve(analysis),
-                () => client
+                {
+                    analyzer: () => Promise.resolve(analysis),
+                    clientFactory: () => client,
+                }
             )
         ).rejects.toBeInstanceOf(ImapUnavailableError);
         expect(client.flagCalls).toEqual([]);
@@ -594,8 +619,10 @@ describe("IMAP synchronization", () => {
         const result = await syncInbox(
             { account: "inbox@example.invalid", password: "secret" },
             repository,
-            () => Promise.resolve(analysis),
-            () => client
+            {
+                analyzer: () => Promise.resolve(analysis),
+                clientFactory: () => client,
+            }
         );
         expect(result).toEqual({ imported: 1, duplicates: 0, rejected: 0 });
         const stored = repository.items.get("mail-1");
@@ -970,6 +997,7 @@ describe("POST /api/sync — Basic auth", () => {
         >();
     const routes = createRoutes({
         repository: new FakeRepository(),
+        criteriaRepository: new FakeCriteriaRepository(),
         sync: fakeSync,
     });
 
@@ -1239,16 +1267,28 @@ describe("POST /api/mails/:id/flag — flag mail as important", () => {
 });
 
 describe("POST /api/mails/:id/retry-analysis", () => {
+    let criteriaRepository: FakeCriteriaRepository;
+
+    beforeEach(() => {
+        criteriaRepository = new FakeCriteriaRepository();
+    });
+
     it("returns 500 for unknown mail (processMailItem throws)", async () => {
         const repository = new FakeRepository();
         repository.get = () => Promise.resolve(null);
         const routes = createRoutes({
             repository,
+            criteriaRepository,
             analyzer: () => Promise.resolve(analysis),
         });
         const response = await routes.request(
             "/api/mails/unknown/retry-analysis",
-            { method: "POST" }
+            {
+                method: "POST",
+                headers: {
+                    authorization: `Basic ${Buffer.from("test@example.com:pass").toString("base64")}`,
+                },
+            }
         );
         expect(response.status).toBe(500);
     });
@@ -1257,11 +1297,17 @@ describe("POST /api/mails/:id/retry-analysis", () => {
         const repository = new FakeRepository(sampleItem("failed"));
         const routes = createRoutes({
             repository,
+            criteriaRepository,
             analyzer: () => Promise.resolve(analysis),
         });
         const response = await routes.request(
             "/api/mails/mail-1/retry-analysis",
-            { method: "POST" }
+            {
+                method: "POST",
+                headers: {
+                    authorization: `Basic ${Buffer.from("test@example.com:pass").toString("base64")}`,
+                },
+            }
         );
         expect(response.status).toBe(200);
         expect(JSON.parse(await response.text())).toHaveProperty(

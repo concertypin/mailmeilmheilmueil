@@ -1,20 +1,41 @@
-import { type MailAnalysis, type MailItem } from "../../src/lib/mail-schema";
+import {
+    DEFAULT_ANALYSIS_FIELDS,
+    type AnalysisField,
+    type MailAnalysis,
+    type MailItem,
+} from "../../src/lib/mail-schema";
 import { firestoreRepository, now, type MailRepository } from "./repository";
 import { analyzeMail, generateDraft } from "./analysis";
 
-export type MailAnalyzer = (item: MailItem) => Promise<MailAnalysis>;
+export type MailAnalyzer = (
+    item: MailItem,
+    fields: readonly AnalysisField[]
+) => Promise<MailAnalysis>;
 
-export type DraftGenerator = (item: MailItem, analysis: MailAnalysis) => string;
+export type DraftGenerator = (
+    item: MailItem,
+    analysis: MailAnalysis,
+    fields: readonly AnalysisField[]
+) => string;
 
 export const AI_FAILURE_MESSAGE =
     "AI 분석에 실패했습니다. 테스트 메일을 다시 보내 주세요.";
 
+export type ProcessMailOptions = {
+    fields?: readonly AnalysisField[];
+    analyzer?: MailAnalyzer;
+    draftGenerator?: DraftGenerator;
+};
+
+/** Process one queued mail: analyze → generate draft → update repository. */
 export async function processMailItem(
     id: string,
     repository: MailRepository = firestoreRepository,
-    analyzer: MailAnalyzer = analyzeMail,
-    draftGenerator: DraftGenerator = generateDraft
+    options: ProcessMailOptions = {}
 ): Promise<"ready" | "failed"> {
+    const fields = options.fields ?? DEFAULT_ANALYSIS_FIELDS;
+    const analyzer = options.analyzer ?? analyzeMail;
+    const draftGenerator = options.draftGenerator ?? generateDraft;
     const item = await repository.get(id);
     if (!item) {
         throw new Error(`Mail item ${id} was not found`);
@@ -22,7 +43,7 @@ export async function processMailItem(
 
     await repository.update(id, { status: "processing", failureMessage: null });
     try {
-        const analysis = await analyzer(item);
+        const analysis = await analyzer(item, fields);
         await repository.update(id, {
             analysis,
             processedAt: now(),
@@ -31,7 +52,7 @@ export async function processMailItem(
         });
         // Generate draft from analysis (sync formatting, no AI)
         try {
-            const draft = draftGenerator(item, analysis);
+            const draft = draftGenerator(item, analysis, fields);
             if (draft) {
                 repository.update(id, { draft }).catch(() => undefined);
             }
