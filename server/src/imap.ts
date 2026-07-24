@@ -248,9 +248,6 @@ export async function syncInbox(
         }
         return result;
     } catch (error: unknown) {
-        process.stderr.write(
-            `syncInbox error: ${error instanceof Error ? error.stack : String(error)}\n`
-        );
         if (error instanceof ImapCredentialError) {
             throw error;
         }
