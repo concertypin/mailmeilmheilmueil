@@ -48,7 +48,7 @@ export type ImapClient = {
         options: { readOnly: boolean; acquireTimeout: number }
     ): Promise<{ release(): void }>;
     search(
-        query: { seen: boolean },
+        query: Record<string, unknown> | { all?: boolean; seen?: boolean },
         options: { uid: boolean }
     ): Promise<number[] | false>;
     fetchOne(
@@ -184,10 +184,7 @@ export async function syncInbox(
             throw new ImapUnavailableError("IMAP server is unavailable");
         }
         const uidValidity = client.mailbox.uidValidity.toString();
-        const searchResult = await client.search(
-            { seen: false },
-            { uid: true }
-        );
+        const searchResult = await client.search({}, { uid: true });
         const uids = searchResult === false ? [] : searchResult;
         const result: ImapSyncResult = {
             imported: 0,
