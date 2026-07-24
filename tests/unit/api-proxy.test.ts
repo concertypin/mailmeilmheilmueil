@@ -136,6 +136,10 @@ it.concurrent(
             { status: 201, headers: { "Content-Type": "application/json" } }
         );
 
+        const encoded = Buffer.from("user@kangnam.ac.kr:password").toString(
+            "base64"
+        );
+        const authHeaderValue = `Basic ${encoded}`;
         const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(apiResponse);
         const source = createAttachedMailDataSource(fetchFn);
 
@@ -159,7 +163,7 @@ it.concurrent(
         const result = await source.sendReviewed(
             item,
             ["student@example.invalid"],
-            "Basic dXNlckBrYW5nbmFtLmFjLmtyOnBhc3N3b3Jk"
+            authHeaderValue
         );
         expect(fetchFn).toHaveBeenCalledWith(
             "/api/mails/reviewed-1/send",
@@ -167,7 +171,7 @@ it.concurrent(
                 method: "POST",
                 // oxlint-disable-next-line typescript/no-unsafe-assignment
                 headers: expect.objectContaining({
-                    authorization: "Basic dXNlckBrYW5nbmFtLmFjLmtyOnBhc3N3b3Jk",
+                    authorization: authHeaderValue,
                     "Content-Type": "application/json",
                 }),
                 body: JSON.stringify({ bcc: ["student@example.invalid"] }),
