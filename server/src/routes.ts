@@ -17,7 +17,7 @@ import {
 import { firestoreRepository, type MailRepository } from "./repository";
 import { analyzeMail, collabModelConfig, pickModel } from "./analysis";
 import { processMailItem, type MailAnalyzer } from "./processor";
-import { parseImapBasicAuthorization } from "./basic-auth";
+import { parseImapCredentialsFromRequest } from "./basic-auth";
 import {
     syncInbox,
     createImapClient,
@@ -58,8 +58,13 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
     return new Hono()
         .get("/healthz", (context) => context.json({ status: "ok" }))
         .post("/api/login", async (context) => {
-            const credentials = parseImapBasicAuthorization(
-                context.req.header("authorization")
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization"),
+                {
+                    "x-imap-host": context.req.header("x-imap-host"),
+                    "x-imap-port": context.req.header("x-imap-port"),
+                    "x-imap-secure": context.req.header("x-imap-secure"),
+                }
             );
             if (!credentials) {
                 return context.json(
@@ -114,8 +119,16 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             }
         })
         .post("/api/sync", async (context) => {
-            const credentials = parseImapBasicAuthorization(
-                context.req.header("authorization")
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization"),
+                {
+                    "x-imap-host":
+                        context.req.header("x-imap-host") ?? undefined,
+                    "x-imap-port":
+                        context.req.header("x-imap-port") ?? undefined,
+                    "x-imap-secure":
+                        context.req.header("x-imap-secure") ?? undefined,
+                }
             );
             if (!credentials) {
                 return context.json(
@@ -244,8 +257,16 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
             return context.json(toMailApiItem(updated));
         })
         .post("/api/compose", async (context) => {
-            const credentials = parseImapBasicAuthorization(
-                context.req.header("authorization")
+            const credentials = parseImapCredentialsFromRequest(
+                context.req.header("authorization"),
+                {
+                    "x-imap-host":
+                        context.req.header("x-imap-host") ?? undefined,
+                    "x-imap-port":
+                        context.req.header("x-imap-port") ?? undefined,
+                    "x-imap-secure":
+                        context.req.header("x-imap-secure") ?? undefined,
+                }
             );
             if (!credentials) {
                 return context.json(

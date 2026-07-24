@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import {
     AddressBookIcon,
-    FunnelIcon,
+    ChartBar,
     EnvelopeSimpleIcon,
+    FunnelIcon,
     MagnifyingGlassIcon,
     PencilSimpleIcon,
     StarIcon,
@@ -10,6 +11,7 @@ import {
 import { Link, useSearchParams } from "wouter";
 import { useMailData } from "@/lib/mail-data";
 import {
+    buildImapHeaders,
     encodeImapBasicAuthorization,
     loadImapBasicCredentials,
     redirectForInvalidImapCredentials,
@@ -79,13 +81,10 @@ export default function Home() {
         setSyncMessage(null);
         setSyncMessageKind(null);
         try {
-            const auth = encodeImapBasicAuthorization(
-                credentials.account,
-                credentials.password
-            );
+            const headers = buildImapHeaders(credentials);
             const response = await fetch("/api/sync", {
                 method: "POST",
-                headers: { authorization: auth },
+                headers,
             });
             if (!response.ok) {
                 if (response.status === 401) {
@@ -241,6 +240,19 @@ export default function Home() {
 
                     <nav className="mt-5">
                         <ul className="menu w-full gap-1 p-0 text-sm">
+                            <li>
+                                <Link
+                                    className="flex items-center gap-3 rounded-lg px-4 py-2 transition-colors hover:bg-base-300"
+                                    href="/dashboard"
+                                >
+                                    <ChartBar
+                                        aria-hidden="true"
+                                        size={18}
+                                        weight="bold"
+                                    />
+                                    대시보드
+                                </Link>
+                            </li>
                             <li>
                                 <button
                                     className={
