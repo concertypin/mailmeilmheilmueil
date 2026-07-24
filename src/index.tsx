@@ -10,6 +10,7 @@ import Home from "@/pages/Home";
 import Contacts from "@/pages/Contacts";
 import Compose from "@/pages/Compose";
 import Landing from "@/pages/Landing";
+import Dashboard from "@/pages/Dashboard";
 import MailReview from "@/pages/MailReview";
 
 const root = document.getElementById("root");
@@ -24,6 +25,11 @@ createRoot(root!).render(
             <AddressBookProvider>
                 <Switch>
                     <Route path="/" component={Landing} />
+                    <Route path="/dashboard">
+                        <App>
+                            <Dashboard />
+                        </App>
+                    </Route>
                     <Route path="/inbox">
                         <App>
                             <Home />

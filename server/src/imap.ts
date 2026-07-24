@@ -224,14 +224,14 @@ export async function syncInbox(
                 await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
                 continue;
             }
-            item = {
-                ...item,
+            const item = {
+                ...source.item,
                 mailboxAccount: credentials.account,
             };
 
             const idempotencyKey = `${credentials.account}|${uidValidity}|${uid}`;
             const inserted = await repository.createIfAbsent(
-                source.item,
+                item,
                 idempotencyKey
             );
             if (inserted.created) {
