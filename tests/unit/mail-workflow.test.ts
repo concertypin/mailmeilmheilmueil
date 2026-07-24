@@ -429,21 +429,26 @@ describe("IMAP synchronization", () => {
         const secondClient = new FakeImapClient([message(802)]);
         let attempts = 0;
 
-        await expect(
-            syncInbox(
-                { account: "inbox@example.invalid", password: "secret" },
-                repository,
-                () => {
-                    attempts += 1;
-                    return attempts === 1
-                        ? Promise.reject(new Error("AI provider unavailable"))
-                        : Promise.resolve(analysis);
-                },
-                () => firstClient
-            )
-        ).rejects.toBeInstanceOf(ImapUnavailableError);
+        const firstResult = await syncInbox(
+            { account: "inbox@example.invalid", password: "secret" },
+            repository,
+            () => {
+                attempts += 1;
+                return attempts === 1
+                    ? Promise.reject(new Error("AI provider unavailable"))
+                    : Promise.resolve(analysis);
+            },
+            () => firstClient
+        );
+        expect(firstResult).toEqual({
+            imported: 1,
+            duplicates: 0,
+            rejected: 0,
+        });
         expect(repository.items.get("mail-1")?.status).toBe("failed");
-        expect(firstClient.flagCalls).toEqual([]);
+        expect(firstClient.flagCalls).toEqual([
+            { range: 802, flags: ["\\Seen"], options: { uid: true } },
+        ]);
 
         expect(
             await syncInbox(

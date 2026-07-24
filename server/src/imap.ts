@@ -224,29 +224,23 @@ export async function syncInbox(
             );
             if (inserted.created) {
                 result.imported += 1;
-                const processingResult = await processMailItem(
-                    inserted.id,
-                    repository,
-                    analyzer
-                );
-                if (processingResult === "failed") {
-                    throw new ImapUnavailableError(
-                        "Mail analysis failed; retry required"
-                    );
+                try {
+                    await processMailItem(inserted.id, repository, analyzer);
+                } catch {
+                    /* AI analysis failure is non-fatal; mail is imported */
                 }
             } else {
                 result.duplicates += 1;
                 const existing = await repository.get(inserted.id);
                 if (existing?.status === "failed") {
-                    const processingResult = await processMailItem(
-                        inserted.id,
-                        repository,
-                        analyzer
-                    );
-                    if (processingResult === "failed") {
-                        throw new ImapUnavailableError(
-                            "Mail analysis failed; retry required"
+                    try {
+                        await processMailItem(
+                            inserted.id,
+                            repository,
+                            analyzer
                         );
+                    } catch {
+                        /* retry AI analysis failure is non-fatal */
                     }
                 }
             }
