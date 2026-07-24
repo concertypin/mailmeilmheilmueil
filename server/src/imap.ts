@@ -224,24 +224,18 @@ export async function syncInbox(
             );
             if (inserted.created) {
                 result.imported += 1;
-                try {
-                    await processMailItem(inserted.id, repository, analyzer);
-                } catch {
-                    /* AI analysis failure is non-fatal; mail is imported */
-                }
+                processMailItem(inserted.id, repository, analyzer).catch(() => {
+                    /* AI analysis is fire-and-forget */
+                });
             } else {
                 result.duplicates += 1;
                 const existing = await repository.get(inserted.id);
                 if (existing?.status === "failed") {
-                    try {
-                        await processMailItem(
-                            inserted.id,
-                            repository,
-                            analyzer
-                        );
-                    } catch {
-                        /* retry AI analysis failure is non-fatal */
-                    }
+                    processMailItem(inserted.id, repository, analyzer).catch(
+                        () => {
+                            /* retry AI analysis is fire-and-forget */
+                        }
+                    );
                 }
             }
             await client.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
