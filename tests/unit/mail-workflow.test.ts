@@ -92,7 +92,10 @@ class FakeRepository implements MailRepository {
 }
 class FakeCriteriaRepository implements AnalysisCriteriaRepository {
     get(_account: string): Promise<AnalysisCriteria> {
-        return Promise.resolve({ customFields: [] });
+        return Promise.resolve({
+            disabledDefaultKeys: [],
+            customFields: [],
+        });
     }
     save(
         _account: string,
