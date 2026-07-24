@@ -124,18 +124,18 @@ export default function Landing() {
         setLoginError(null);
 
         try {
+            const fullAccount = `${account.trim()}@kangnam.ac.kr`;
             const authHeader = encodeImapBasicAuthorization(
-                account.trim(),
+                fullAccount,
                 password
             );
             const response = await fetch("/api/login", {
                 method: "POST",
                 headers: { authorization: authHeader },
             });
-
             if (response.status === 204) {
                 saveImapBasicCredentials({
-                    account: account.trim(),
+                    account: fullAccount,
                     password,
                 });
                 setLocation("/inbox");
