@@ -100,6 +100,18 @@ test("opens the filter panel and resets filters", async () => {
     expect(screen.getByRole("searchbox", { name: "혜택" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "신청 방법" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "문의·참고" })).toBeVisible();
+    // AI section is foldable — collapse and verify fields hide
+    await user.click(screen.getByRole("button", { name: /AI 분류 정보/ }));
+    expect(screen.queryByRole("searchbox", { name: "대상" })).toBeNull();
+    expect(
+        screen.getByRole("button", { name: /AI 분류 정보/ })
+    ).toHaveAttribute("aria-expanded", "false");
+    // Expand again so subsequent tests can use the fields
+    await user.click(screen.getByRole("button", { name: /AI 분류 정보/ }));
+    expect(
+        screen.getByRole("button", { name: /AI 분류 정보/ })
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("searchbox", { name: "대상" })).toBeVisible();
     expect(screen.getByRole("searchbox", { name: "보낸사람" })).toBeVisible();
     expect(screen.getByLabelText("수신일 시작일")).toBeVisible();
     expect(screen.getByLabelText("수신일 종료일")).toBeVisible();

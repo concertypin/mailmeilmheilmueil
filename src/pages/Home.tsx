@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import {
     AddressBookIcon,
+    CaretDownIcon,
     FunnelIcon,
     EnvelopeSimpleIcon,
     MagnifyingGlassIcon,
@@ -50,6 +51,7 @@ export default function Home() {
     const [benefitsFilter, setBenefitsFilter] = useState("");
     const [applicationMethodFilter, setApplicationMethodFilter] = useState("");
     const [contactFilter, setContactFilter] = useState("");
+    const [aiFilterOpen, setAiFilterOpen] = useState(true);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [promotionDraftMessage, setPromotionDraftMessage] = useState<
         string | null
@@ -563,129 +565,173 @@ export default function Home() {
                                                         분류
                                                     </h3>
                                                 </div>
-                                                <div className="col-span-full flex items-center gap-3 border-b border-base-300 pb-3 pt-2">
+                                                <button
+                                                    aria-expanded={aiFilterOpen}
+                                                    className="btn btn-ghost col-span-full flex items-center gap-3 border-b border-base-300 pb-3 pt-2 font-semibold text-base h-auto"
+                                                    onClick={() =>
+                                                        setAiFilterOpen(
+                                                            !aiFilterOpen
+                                                        )
+                                                    }
+                                                    type="button"
+                                                >
+                                                    <CaretDownIcon
+                                                        aria-hidden="true"
+                                                        className={`shrink-0 transition-transform ${
+                                                            aiFilterOpen
+                                                                ? ""
+                                                                : "-rotate-90"
+                                                        }`}
+                                                        size={18}
+                                                    />
                                                     <h3 className="font-semibold">
                                                         AI 분류 정보
                                                     </h3>
-                                                    <span className="text-xs text-base-content/55">
+                                                    <span className="text-xs text-base-content/55 font-normal">
                                                         분류기가 추출한 정보
                                                     </span>
-                                                </div>
-                                                <label className="fieldset">
-                                                    <span className="label">
-                                                        대상
-                                                    </span>
-                                                    <input
-                                                        aria-label="대상"
-                                                        className="input input-sm w-full"
-                                                        onChange={(event) =>
-                                                            setAudienceFilter(
-                                                                event
-                                                                    .currentTarget
-                                                                    .value
-                                                            )
-                                                        }
-                                                        placeholder="예: 대학생"
-                                                        type="search"
-                                                        value={audienceFilter}
-                                                    />
-                                                </label>
-                                                <label className="fieldset">
-                                                    <span className="label">
-                                                        일정
-                                                    </span>
-                                                    <input
-                                                        aria-label="일정"
-                                                        className="input input-sm w-full"
-                                                        onChange={(event) =>
-                                                            setScheduleFilter(
-                                                                event
-                                                                    .currentTarget
-                                                                    .value
-                                                            )
-                                                        }
-                                                        placeholder="예: 8월 10일"
-                                                        type="search"
-                                                        value={scheduleFilter}
-                                                    />
-                                                </label>
-                                                <label className="fieldset">
-                                                    <span className="label">
-                                                        신청 마감
-                                                    </span>
-                                                    <input
-                                                        aria-label="신청 마감"
-                                                        className="input input-sm w-full"
-                                                        onChange={(event) =>
-                                                            setDeadlineFilter(
-                                                                event
-                                                                    .currentTarget
-                                                                    .value
-                                                            )
-                                                        }
-                                                        type="date"
-                                                        value={deadlineFilter}
-                                                    />
-                                                </label>
-                                                <label className="fieldset">
-                                                    <span className="label">
-                                                        혜택
-                                                    </span>
-                                                    <input
-                                                        aria-label="혜택"
-                                                        className="input input-sm w-full"
-                                                        onChange={(event) =>
-                                                            setBenefitsFilter(
-                                                                event
-                                                                    .currentTarget
-                                                                    .value
-                                                            )
-                                                        }
-                                                        placeholder="예: 수료증"
-                                                        type="search"
-                                                        value={benefitsFilter}
-                                                    />
-                                                </label>
-                                                <label className="fieldset">
-                                                    <span className="label">
-                                                        신청 방법
-                                                    </span>
-                                                    <input
-                                                        aria-label="신청 방법"
-                                                        className="input input-sm w-full"
-                                                        onChange={(event) =>
-                                                            setApplicationMethodFilter(
-                                                                event
-                                                                    .currentTarget
-                                                                    .value
-                                                            )
-                                                        }
-                                                        placeholder="예: 온라인 신청"
-                                                        type="search"
-                                                        value={
-                                                            applicationMethodFilter
-                                                        }
-                                                    />
-                                                </label>
-                                                <label className="fieldset">
-                                                    <span className="label">
-                                                        문의·참고
-                                                    </span>
-                                                    <input
-                                                        aria-label="문의·참고"
-                                                        className="input input-sm w-full"
-                                                        onChange={(event) =>
-                                                            setContactFilter(
-                                                                event
-                                                                    .currentTarget
-                                                                    .value
-                                                            )
-                                                        }
-                                                        placeholder="예: 전화번호"
-                                                        type="search"
-                                                        value={contactFilter}
-                                                    />
-                                                </label>
+                                                </button>
+                                                {aiFilterOpen ? (
+                                                    <>
+                                                        <label className="fieldset">
+                                                            <span className="label">
+                                                                대상
+                                                            </span>
+                                                            <input
+                                                                aria-label="대상"
+                                                                className="input input-sm w-full"
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    setAudienceFilter(
+                                                                        event
+                                                                            .currentTarget
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="예: 대학생"
+                                                                type="search"
+                                                                value={
+                                                                    audienceFilter
+                                                                }
+                                                            />
+                                                        </label>
+                                                        <label className="fieldset">
+                                                            <span className="label">
+                                                                일정
+                                                            </span>
+                                                            <input
+                                                                aria-label="일정"
+                                                                className="input input-sm w-full"
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    setScheduleFilter(
+                                                                        event
+                                                                            .currentTarget
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="예: 8월 10일"
+                                                                type="search"
+                                                                value={
+                                                                    scheduleFilter
+                                                                }
+                                                            />
+                                                        </label>
+                                                        <label className="fieldset">
+                                                            <span className="label">
+                                                                신청 마감
+                                                            </span>
+                                                            <input
+                                                                aria-label="신청 마감"
+                                                                className="input input-sm w-full"
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    setDeadlineFilter(
+                                                                        event
+                                                                            .currentTarget
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                type="date"
+                                                                value={
+                                                                    deadlineFilter
+                                                                }
+                                                            />
+                                                        </label>
+                                                        <label className="fieldset">
+                                                            <span className="label">
+                                                                혜택
+                                                            </span>
+                                                            <input
+                                                                aria-label="혜택"
+                                                                className="input input-sm w-full"
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    setBenefitsFilter(
+                                                                        event
+                                                                            .currentTarget
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="예: 수료증"
+                                                                type="search"
+                                                                value={
+                                                                    benefitsFilter
+                                                                }
+                                                            />
+                                                        </label>
+                                                        <label className="fieldset">
+                                                            <span className="label">
+                                                                신청 방법
+                                                            </span>
+                                                            <input
+                                                                aria-label="신청 방법"
+                                                                className="input input-sm w-full"
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    setApplicationMethodFilter(
+                                                                        event
+                                                                            .currentTarget
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="예: 온라인 신청"
+                                                                type="search"
+                                                                value={
+                                                                    applicationMethodFilter
+                                                                }
+                                                            />
+                                                        </label>
+                                                        <label className="fieldset">
+                                                            <span className="label">
+                                                                문의·참고
+                                                            </span>
+                                                            <input
+                                                                aria-label="문의·참고"
+                                                                className="input input-sm w-full"
+                                                                onChange={(
+                                                                    event
+                                                                ) =>
+                                                                    setContactFilter(
+                                                                        event
+                                                                            .currentTarget
+                                                                            .value
+                                                                    )
+                                                                }
+                                                                placeholder="예: 전화번호"
+                                                                type="search"
+                                                                value={
+                                                                    contactFilter
+                                                                }
+                                                            />
+                                                        </label>
+                                                    </>
+                                                ) : null}
                                                 <div className="md:col-span-2">
                                                     <label className="fieldset">
                                                         <span className="label">
