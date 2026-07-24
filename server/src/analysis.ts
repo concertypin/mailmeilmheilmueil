@@ -1,4 +1,4 @@
-import { generateText } from "ai";
+import { generateText, Output } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { codexCli } from "ai-sdk-provider-codex-cli";
 import {
@@ -79,10 +79,14 @@ function codexModel(modelName: string) {
     });
 }
 
-function pickModel(modelName: string) {
+export function pickModel(modelName: string) {
     return config.provider === "openai"
         ? openAIModel(modelName)
         : codexModel(modelName);
+}
+
+export function collabModelConfig() {
+    return config.collabModel;
 }
 
 const analysisSystemPrompt = `You classify and extract facts from shared-mail messages for a Korean staff review workflow.
@@ -126,8 +130,10 @@ export async function analyzeMail(item: MailItem): Promise<MailAnalysis> {
         model,
         instructions: analysisSystemPrompt,
         prompt,
+        output: Output.object({ schema: MailAnalysisSchema }),
     });
-    return MailAnalysisSchema.parse(JSON.parse(result.text));
+
+    return result.output;
 }
 
 /** Format analysis data into a Korean promotional draft (no AI call). */

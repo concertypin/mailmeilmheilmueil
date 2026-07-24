@@ -1,16 +1,16 @@
 import { useState } from "react";
-import { type MailItem } from "@/lib/mail-schema";
+import { useChat } from "@ai-sdk/react";
+import {
+    DefaultChatTransport,
+    lastAssistantMessageIsCompleteWithToolCalls,
+} from "ai";
 import { z } from "zod";
+import { type MailItem } from "@/lib/mail-schema";
 
 interface MailReviewPanelProps {
     item: MailItem;
     onReview: (promotionDraft: string) => Promise<void>;
     reviewError?: string | null;
-}
-
-interface DraftConversationMessage {
-    role: "user" | "assistant";
-    content: string;
 }
 
 const fieldLabels = [
@@ -27,13 +27,13 @@ function displayTimestamp(timestamp: MailItem["receivedAt"]): string {
 }
 
 function lifecycleLabel(status: MailItem["status"]): string {
-    const labels = {
+    const labels: Record<MailItem["status"], string> = {
         queued: "대기 중",
         processing: "분석 중",
-        ready: "검토 대기",
-        failed: "분석 실패",
+        ready: "검토 가능",
         reviewed: "검토 완료",
         sent: "발송 완료",
+        failed: "실패",
     } satisfies Record<MailItem["status"], string>;
     return labels[status];
 }
@@ -47,12 +47,30 @@ export default function MailReviewPanel({
     const analysis = item.analysis;
     const canReview = item.status === "ready";
     const [promotionDraft, setPromotionDraft] = useState(item.draft ?? "");
-    const [rewritePrompt, setRewritePrompt] = useState("");
-    const [conversation, setConversation] = useState<
-        DraftConversationMessage[]
-    >([]);
     const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
-    const [collabLoading, setCollabLoading] = useState(false);
+    const [collabInput, setCollabInput] = useState("");
+    const { messages, sendMessage, addToolOutput, status } = useChat({
+        transport: new DefaultChatTransport({
+            api: `/api/mails/${item.id}/collab`,
+        }),
+        sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+        onToolCall({ toolCall }) {
+            if (toolCall.dynamic) return;
+            if (toolCall.toolName === "patchDraft") {
+                const parsed = z
+                    .object({ draft: z.string() })
+                    .safeParse(toolCall.input);
+                if (parsed.success) {
+                    setPromotionDraft(parsed.data.draft);
+                }
+                addToolOutput({
+                    tool: "patchDraft",
+                    toolCallId: toolCall.toolCallId,
+                    output: "초안이 업데이트되었습니다.",
+                });
+            }
+        },
+    });
 
     return (
         <div className="flex min-h-[calc(100dvh-15rem)] flex-col space-y-6">
@@ -283,124 +301,127 @@ export default function MailReviewPanel({
                                 </p>
                             </div>
                             <div className="space-y-4 p-5">
-                                <div className="chat chat-start">
-                                    <div className="chat-bubble chat-bubble-neutral text-sm">
-                                        현재 홍보 초안을 함께 다듬을 준비가
-                                        됐어요. 어떤 방향으로 바꿔볼까요?
-                                    </div>
-                                </div>
-                                {conversation.map((message, index) => (
-                                    <div
-                                        className={`chat ${message.role === "user" ? "chat-end" : "chat-start"}`}
-                                        key={`${message.role}-${index}`}
-                                    >
-                                        <div
-                                            className={`chat-bubble text-sm ${
-                                                message.role === "user"
-                                                    ? "chat-bubble-primary"
-                                                    : "chat-bubble-neutral"
-                                            }`}
-                                        >
-                                            {message.content}
+                                {messages.length === 0 ? (
+                                    <div className="chat chat-start">
+                                        <div className="chat-bubble chat-bubble-neutral text-sm">
+                                            현재 홍보 초안을 함께 다듬을 준비가
+                                            됐어요. 어떤 방향으로 바꿔볼까요?
                                         </div>
                                     </div>
+                                ) : null}
+                                {messages.map((message) => (
+                                    <div key={message.id}>
+                                        {message.parts.map((part) => {
+                                            switch (part.type) {
+                                                case "text":
+                                                    return (
+                                                        <div
+                                                            className={`chat ${message.role === "user" ? "chat-end" : "chat-start"}`}
+                                                            key={`${message.id}-${part.type}`}
+                                                        >
+                                                            <div
+                                                                className={`chat-bubble text-sm ${message.role === "user" ? "chat-bubble-primary" : "chat-bubble-neutral"}`}
+                                                            >
+                                                                {part.text}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                case "tool-patchDraft":
+                                                    switch (part.state) {
+                                                        case "input-streaming":
+                                                        case "input-available":
+                                                            return (
+                                                                <div
+                                                                    className="chat chat-start"
+                                                                    key={`${message.id}-tool-patchDraft`}
+                                                                >
+                                                                    <div className="chat-bubble chat-bubble-neutral text-sm">
+                                                                        초안
+                                                                        업데이트
+                                                                        중...
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        case "output-available":
+                                                            return (
+                                                                <div
+                                                                    className="chat chat-start"
+                                                                    key={`${message.id}-tool-patchDraft`}
+                                                                >
+                                                                    <div className="chat-bubble chat-bubble-neutral text-sm">
+                                                                        ✅
+                                                                        초안이
+                                                                        업데이트되었습니다.
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        case "output-error":
+                                                            return (
+                                                                <div
+                                                                    className="chat chat-start"
+                                                                    key={`${message.id}-tool-patchDraft`}
+                                                                >
+                                                                    <div className="chat-bubble chat-bubble-neutral text-sm">
+                                                                        ❌ 오류:
+                                                                        {part.errorText ??
+                                                                            "초안 업데이트 실패"}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                    }
+                                                    break;
+                                                default:
+                                                    return null;
+                                            }
+                                        })}
+                                    </div>
                                 ))}
+                                {status === "streaming" ? (
+                                    <div className="chat chat-start">
+                                        <div className="chat-bubble chat-bubble-neutral text-sm">
+                                            <span className="loading loading-dots loading-xs" />
+                                        </div>
+                                    </div>
+                                ) : null}
                             </div>
                             <div className="border-t border-base-300 p-4">
-                                <textarea
-                                    aria-label="초안 재작성 요청"
-                                    className="textarea h-24 w-full"
-                                    onChange={(event) =>
-                                        setRewritePrompt(
-                                            event.currentTarget.value
-                                        )
-                                    }
-                                    placeholder="예: 대학생에게 더 친근한 톤으로 짧게 작성해줘"
-                                    value={rewritePrompt}
-                                />
-                                <button
-                                    className="btn btn-primary btn-sm mt-3 w-full"
-                                    disabled={
-                                        rewritePrompt.trim().length === 0 ||
-                                        collabLoading
-                                    }
-                                    onClick={() => {
-                                        const request = rewritePrompt.trim();
-                                        if (request.length === 0) return;
-                                        setCollabLoading(true);
-                                        setConversation((prev) => [
-                                            ...prev,
-                                            {
-                                                role: "user" as const,
-                                                content: request,
-                                            },
-                                        ]);
-                                        setRewritePrompt("");
-                                        void (async () => {
-                                            try {
-                                                const res = await fetch(
-                                                    `/api/mails/${item.id}/collab`,
-                                                    {
-                                                        method: "POST",
-                                                        headers: {
-                                                            "Content-Type":
-                                                                "application/json",
-                                                        },
-                                                        body: JSON.stringify({
-                                                            userRequest:
-                                                                request,
-                                                        }),
-                                                    }
-                                                );
-                                                if (!res.ok) {
-                                                    throw new Error(
-                                                        "협업 요청에 실패했습니다"
-                                                    );
-                                                }
-                                                const body: unknown =
-                                                    await res.json();
-                                                const parsed = z
-                                                    .object({
-                                                        rewrittenDraft:
-                                                            z.string(),
-                                                    })
-                                                    .safeParse(body);
-                                                if (!parsed.success) {
-                                                    throw new Error(
-                                                        "서버 응답이 올바르지 않습니다"
-                                                    );
-                                                }
-                                                setPromotionDraft(
-                                                    parsed.data.rewrittenDraft
-                                                );
-                                                setConversation((prev) => [
-                                                    ...prev,
-                                                    {
-                                                        role: "assistant" as const,
-                                                        content:
-                                                            "요청을 반영해 초안을 업데이트했습니다.",
-                                                    },
-                                                ]);
-                                            } catch {
-                                                setConversation((prev) => [
-                                                    ...prev,
-                                                    {
-                                                        role: "assistant" as const,
-                                                        content:
-                                                            "죄송합니다. 요청 처리 중 오류가 발생했습니다.",
-                                                    },
-                                                ]);
-                                            } finally {
-                                                setCollabLoading(false);
-                                            }
-                                        })();
+                                <form
+                                    onSubmit={(event) => {
+                                        event.preventDefault();
+                                        if (collabInput.trim().length === 0)
+                                            return;
+                                        void sendMessage({
+                                            text: collabInput.trim(),
+                                        });
+                                        setCollabInput("");
                                     }}
-                                    type="button"
                                 >
-                                    {collabLoading
-                                        ? "처리 중..."
-                                        : "요청 보내기"}
-                                </button>
+                                    <textarea
+                                        aria-label="초안 재작성 요청"
+                                        className="textarea h-24 w-full"
+                                        onChange={(event) =>
+                                            setCollabInput(
+                                                event.currentTarget.value
+                                            )
+                                        }
+                                        placeholder="예: 대학생에게 더 친근한 톤으로 짧게 작성해줘"
+                                        value={collabInput}
+                                    />
+                                    <button
+                                        className="btn btn-primary btn-sm mt-3 w-full"
+                                        disabled={
+                                            collabInput.trim().length === 0 ||
+                                            status === "submitted" ||
+                                            status === "streaming"
+                                        }
+                                        type="submit"
+                                    >
+                                        {status === "submitted" ||
+                                        status === "streaming"
+                                            ? "처리 중..."
+                                            : "요청 보내기"}
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </aside>

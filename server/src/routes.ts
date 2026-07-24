@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { Hono } from "hono";
+import {
+    convertToModelMessages,
+    createUIMessageStreamResponse,
+    streamText,
+    toUIMessageStream,
+    tool,
+} from "ai";
 import { Timestamp } from "firebase-admin/firestore";
 import {
     ComposeRequestSchema,
@@ -8,8 +15,8 @@ import {
     toMailApiItem,
 } from "../../src/lib/mail-schema";
 import { firestoreRepository, type MailRepository } from "./repository";
+import { analyzeMail, collabModelConfig, pickModel } from "./analysis";
 import { processMailItem, type MailAnalyzer } from "./processor";
-import { analyzeMail, generateCollabResponse } from "./analysis";
 import { parseImapBasicAuthorization } from "./basic-auth";
 import {
     syncInbox,
@@ -303,59 +310,60 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
         })
         .post("/api/mails/:id/collab", async (context) => {
             const id = context.req.param("id");
-            let body: unknown;
-            try {
-                body = await context.req.json();
-            } catch {
+            const body: { messages?: unknown; draft?: unknown } =
+                await context.req.json();
+            if (
+                !body.messages ||
+                !Array.isArray(body.messages) ||
+                body.messages.length === 0
+            ) {
                 return context.json(
-                    { error: "userRequest must be a non-empty string" },
+                    { error: "messages array is required" },
                     400
                 );
             }
-            const parsed = z
-                .object({
-                    userRequest: z.string().min(1),
-                    draft: z.string().optional(),
-                })
-                .safeParse(body);
-            if (!parsed.success) {
-                return context.json(
-                    { error: "userRequest must be a non-empty string" },
-                    400
-                );
-            }
-            let currentDraft = parsed.data.draft;
+            let currentDraft: string | undefined =
+                typeof body.draft === "string" ? body.draft : undefined;
             if (currentDraft === undefined) {
-                const item = await repository.get(id);
-                if (!item) {
-                    return context.json({ error: "Mail not found" }, 404);
-                }
-                currentDraft = item.draft ?? "";
-                if (!currentDraft.trim()) {
-                    return context.json(
-                        {
-                            error: "No draft available for collaboration",
-                        },
-                        409
-                    );
+                try {
+                    const item = await repository.get(id);
+                    if (item) {
+                        currentDraft = item.draft ?? undefined;
+                    }
+                } catch {
+                    /* draft fetch is best-effort */
                 }
             }
-            try {
-                const rewrittenDraft = await generateCollabResponse(
-                    currentDraft,
-                    parsed.data.userRequest
-                );
-                return context.json({ rewrittenDraft });
-            } catch (error: unknown) {
-                return context.json(
-                    {
-                        error:
-                            error instanceof Error
-                                ? error.message
-                                : "Collaboration failed",
-                    },
-                    500
-                );
-            }
+            const model = pickModel(collabModelConfig());
+            const result = streamText({
+                model,
+                // oxlint-disable-next-line typescript/no-unsafe-argument
+                messages: await convertToModelMessages(body.messages),
+                instructions: `You assist a university staff member in refining a promotional draft in Korean.
+The user provides a request. To update the draft, use the \`patchDraft\` tool.
+Always call \`patchDraft\` when the user asks to change the draft.
+Keep the tone warm and professional, suitable for a Korean university announcement.
+
+Current draft:
+${currentDraft ?? "아직 생성된 초안이 없습니다. 분석 결과를 바탕으로 초안을 먼저 생성해 주세요."}`,
+                tools: {
+                    patchDraft: tool({
+                        description:
+                            "Update the promotional draft with the revised version based on the user's request.",
+                        inputSchema: z.object({
+                            draft: z
+                                .string()
+                                .describe(
+                                    "The complete revised promotional draft text"
+                                ),
+                        }),
+                    }),
+                },
+            });
+            return createUIMessageStreamResponse({
+                stream: toUIMessageStream({
+                    stream: result.stream,
+                }),
+            });
         });
 }
