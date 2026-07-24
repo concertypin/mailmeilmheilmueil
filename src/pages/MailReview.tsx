@@ -65,8 +65,14 @@ export default function MailReview() {
     return (
         <div className="min-h-[calc(100vh-4.5rem)] bg-base-200">
             <div className="grid min-h-[calc(100vh-4.5rem)] lg:grid-cols-[15rem_minmax(0,1fr)]">
-                <MailSidebar activePage="inbox" items={items} />
-                <main className="min-h-[calc(100vh-4.5rem)] space-y-6 bg-base-100 px-6 py-8 sm:px-8 lg:px-10">
+                <MailSidebar
+                    activePage="inbox"
+                    {...(isReviewMode
+                        ? { activeMailbox: "review" as const }
+                        : {})}
+                    items={items}
+                />
+                <div className="min-h-[calc(100vh-4.5rem)] space-y-6 bg-base-100 px-6 py-8 sm:px-8 lg:px-10">
                     <Link className="btn btn-ghost btn-sm" href="/inbox">
                         ← 메일함으로
                     </Link>
@@ -144,7 +150,7 @@ export default function MailReview() {
                             </section>
                         )
                     ) : null}
-                </main>
+                </div>
             </div>
         </div>
     );
