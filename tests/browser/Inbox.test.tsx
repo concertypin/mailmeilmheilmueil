@@ -66,7 +66,7 @@ test("shows sent mailbox with sent status items", async () => {
     expect(screen.getByRole("heading", { name: "보낸메일함" })).toBeVisible();
 });
 
-test("opens the AI filter panel and resets filters", async () => {
+test("opens the filter panel and resets filters", async () => {
     vi.stubGlobal("localStorage", createMockLocalStorage());
     const user = userEvent.setup();
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
@@ -82,5 +82,5 @@ test("opens the AI filter panel and resets filters", async () => {
 
     await user.click(screen.getAllByRole("button", { name: "필터" })[0]!);
     expect(screen.getByRole("button", { name: "필터 초기화" })).toBeVisible();
-    expect(screen.getByRole("combobox", { name: "AI 분류" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "분류" })).toBeVisible();
 });

@@ -93,6 +93,26 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 );
             }
         })
+        .post("/api/login/test", async (context) => {
+            const testAccount = testAccountFromEnv();
+            if (!testAccount) {
+                return context.json(
+                    { error: "Test account is not configured" },
+                    404
+                );
+            }
+            try {
+                const test =
+                    dependencies.testCredentials ?? defaultTestCredentials;
+                await test(testAccount);
+                return context.json(testAccount);
+            } catch {
+                return context.json(
+                    { error: "Test account credentials are invalid" },
+                    502
+                );
+            }
+        })
         .post("/api/sync", async (context) => {
             const credentials = parseImapBasicAuthorization(
                 context.req.header("authorization")
@@ -367,3 +387,13 @@ ${currentDraft ?? "아직 생성된 초안이 없습니다. 분석 결과를 바
             });
         });
 }
+
+export const testAccountFromEnv = () => {
+    const id = process.env.TEST_IMAP_ID?.trim();
+    const password = process.env.TEST_IMAP_PASSWORD;
+    if (!id || !password) return undefined;
+    return {
+        account: `${id}@kangnam.ac.kr`,
+        password,
+    };
+};

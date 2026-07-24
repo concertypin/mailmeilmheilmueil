@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { z } from "zod";
 import { XIcon } from "@phosphor-icons/react";
 import { Link, useLocation, useSearch } from "wouter";
 import {
@@ -155,6 +156,31 @@ export default function Landing() {
             setLoginError(message);
         } catch {
             setLoginError("로그인에 실패했습니다. 다시 시도해 주세요.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+    const handleTestLogin = async () => {
+        setIsSubmitting(true);
+        setLoginError(null);
+        try {
+            const response = await fetch("/api/login/test", {
+                method: "POST",
+            });
+            if (!response.ok) {
+                throw new Error("테스트 계정 로그인에 실패했습니다");
+            }
+            const body: unknown = await response.json();
+            const parsed = z
+                .object({ account: z.string(), password: z.string() })
+                .safeParse(body);
+            if (!parsed.success) {
+                throw new Error("Invalid test account response");
+            }
+            saveImapBasicCredentials(parsed.data);
+            setLocation("/inbox");
+        } catch {
+            setLoginError("테스트 계정 로그인에 실패했습니다");
         } finally {
             setIsSubmitting(false);
         }
@@ -485,16 +511,28 @@ export default function Landing() {
                                     >
                                         취소
                                     </button>
-                                    <button
-                                        className="btn btn-primary order-1 sm:order-2"
-                                        disabled={!canSubmit}
-                                        type="submit"
-                                    >
-                                        {isSubmitting ? (
-                                            <span className="loading loading-spinner loading-sm" />
-                                        ) : null}
-                                        로그인
-                                    </button>
+                                    <div className="order-1 flex flex-col gap-2 sm:order-2 sm:flex-row">
+                                        <button
+                                            className="btn btn-outline"
+                                            disabled={isSubmitting}
+                                            onClick={() => {
+                                                void handleTestLogin();
+                                            }}
+                                            type="button"
+                                        >
+                                            테스트 계정
+                                        </button>
+                                        <button
+                                            className="btn btn-primary"
+                                            disabled={!canSubmit}
+                                            type="submit"
+                                        >
+                                            {isSubmitting ? (
+                                                <span className="loading loading-spinner loading-sm" />
+                                            ) : null}
+                                            로그인
+                                        </button>
+                                    </div>
                                 </div>
                             </form>
                         </div>
