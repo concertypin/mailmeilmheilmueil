@@ -433,12 +433,13 @@ export default function Landing() {
                                         <div className="join w-full">
                                             <input
                                                 className="input join-item w-full"
-                                                onChange={(event) =>
+                                                onChange={(event) => {
+                                                    setShowInvalidAlert(false);
                                                     setAccount(
                                                         event.currentTarget
                                                             .value
-                                                    )
-                                                }
+                                                    );
+                                                }}
                                                 placeholder="510130340"
                                                 type="text"
                                                 value={account}
@@ -452,11 +453,12 @@ export default function Landing() {
                                         <span className="label">비밀번호</span>
                                         <input
                                             className="input w-full"
-                                            onChange={(event) =>
+                                            onChange={(event) => {
+                                                setShowInvalidAlert(false);
                                                 setPassword(
                                                     event.currentTarget.value
-                                                )
-                                            }
+                                                );
+                                            }}
                                             placeholder="••••••••"
                                             type="password"
                                             value={password}
