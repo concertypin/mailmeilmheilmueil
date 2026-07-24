@@ -303,17 +303,6 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
         })
         .post("/api/mails/:id/collab", async (context) => {
             const id = context.req.param("id");
-            const item = await repository.get(id);
-            if (!item) {
-                return context.json({ error: "Mail not found" }, 404);
-            }
-            const currentDraft = item.draft ?? "";
-            if (!currentDraft.trim()) {
-                return context.json(
-                    { error: "No draft available for collaboration" },
-                    409
-                );
-            }
             let body: unknown;
             try {
                 body = await context.req.json();
@@ -324,13 +313,32 @@ export function createRoutes(dependencies: RouteDependencies = {}) {
                 );
             }
             const parsed = z
-                .object({ userRequest: z.string().min(1) })
+                .object({
+                    userRequest: z.string().min(1),
+                    draft: z.string().optional(),
+                })
                 .safeParse(body);
             if (!parsed.success) {
                 return context.json(
                     { error: "userRequest must be a non-empty string" },
                     400
                 );
+            }
+            let currentDraft = parsed.data.draft;
+            if (currentDraft === undefined) {
+                const item = await repository.get(id);
+                if (!item) {
+                    return context.json({ error: "Mail not found" }, 404);
+                }
+                currentDraft = item.draft ?? "";
+                if (!currentDraft.trim()) {
+                    return context.json(
+                        {
+                            error: "No draft available for collaboration",
+                        },
+                        409
+                    );
+                }
             }
             try {
                 const rewrittenDraft = await generateCollabResponse(
