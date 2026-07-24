@@ -98,6 +98,39 @@ export function createFakeMailDataSource(items: MailItem[]): MailDataSource {
                 reviewedAt: Timestamp.now(),
                 draft: draft.trim(),
             }),
+        // oxlint-disable-next-line typescript/require-await
+        async sendReviewed(
+            item: MailItem,
+            bcc: string[],
+            _authorization?: string
+        ) {
+            const source = {
+                ...item,
+                status: "dispatched" as const,
+            };
+            itemMap.set(item.id, source);
+            const sentId = `sent-${item.id}`;
+            const sent = {
+                id: sentId,
+                senderName: item.senderName,
+                senderAddress: item.senderAddress,
+                recipients: [],
+                bcc,
+                subject: item.subject,
+                textBody: item.draft ?? "",
+                receivedAt: Timestamp.now(),
+                externalMessageId: null,
+                status: "sent" as const,
+                processedAt: null,
+                reviewedAt: null,
+                failureMessage: null,
+                analysis: null,
+                draft: null,
+            } satisfies MailItem;
+            itemMap.set(sentId, sent);
+            items.push(sent);
+            return { source, sent };
+        },
     };
 }
 

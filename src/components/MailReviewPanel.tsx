@@ -22,11 +22,12 @@ function lifecycleLabel(status: MailItem["status"]): string {
     const labels: Record<MailItem["status"], string> = {
         queued: "대기 중",
         processing: "분석 중",
-        ready: "검토 가능",
+        ready: "검토 대기",
+        failed: "분석 실패",
         reviewed: "검토 완료",
+        dispatched: "발송 완료",
         sent: "발송 완료",
-        failed: "실패",
-    } satisfies Record<MailItem["status"], string>;
+    };
     return labels[status];
 }
 

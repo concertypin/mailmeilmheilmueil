@@ -45,7 +45,10 @@ export default function MailSidebar({
         if (!items) return "—";
         if (mailbox === "inbox") {
             return items.filter(
-                (item) => item.status !== "reviewed" && item.status !== "sent"
+                (item) =>
+                    item.status !== "reviewed" &&
+                    item.status !== "sent" &&
+                    item.status !== "dispatched"
             ).length;
         }
         if (mailbox === "important") {
@@ -95,7 +98,11 @@ export default function MailSidebar({
         if (useMailboxButtons) {
             return (
                 <button
-                    className={activeMailbox === mailbox ? "active" : ""}
+                    className={
+                        activeMailbox === mailbox
+                            ? "bg-secondary text-secondary-content shadow-sm"
+                            : ""
+                    }
                     onClick={() => onMailboxChange(mailbox)}
                     type="button"
                 >
@@ -108,7 +115,7 @@ export default function MailSidebar({
             <Link
                 className={
                     activePage === "inbox" && activeMailbox === mailbox
-                        ? "active"
+                        ? "bg-secondary text-secondary-content shadow-sm"
                         : ""
                 }
                 href={mailboxPaths[mailbox]}
@@ -121,7 +128,7 @@ export default function MailSidebar({
     return (
         <aside className="border-b border-base-300 bg-base-200 p-3 lg:border-b-0 lg:border-r">
             <Link
-                className={`btn btn-primary btn-sm w-full justify-start ${activePage === "compose" ? "active" : ""}`}
+                className={`btn btn-primary btn-sm w-full justify-start ${activePage === "compose" ? "bg-secondary text-secondary-content shadow-sm" : ""}`}
                 href="/compose"
             >
                 <PencilSimpleIcon aria-hidden="true" size={18} weight="bold" />
@@ -133,7 +140,9 @@ export default function MailSidebar({
                     <li>
                         <Link
                             className={
-                                activePage === "dashboard" ? "active" : ""
+                                activePage === "dashboard"
+                                    ? "bg-secondary text-secondary-content shadow-sm"
+                                    : ""
                             }
                             href="/dashboard"
                         >
@@ -159,7 +168,7 @@ export default function MailSidebar({
 
             <div className="mt-7 border-t border-base-300 pt-5">
                 <Link
-                    className={`btn btn-ghost btn-sm w-full justify-start ${activePage === "contacts" ? "active" : ""}`}
+                    className={`btn btn-ghost btn-sm w-full justify-start ${activePage === "contacts" ? "bg-secondary text-secondary-content shadow-sm" : ""}`}
                     href="/contacts"
                 >
                     <AddressBookIcon aria-hidden="true" size={18} />

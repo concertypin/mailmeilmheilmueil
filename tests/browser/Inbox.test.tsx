@@ -8,6 +8,7 @@ import Home from "@/pages/Home";
 import App from "@/App";
 import { MailDataProvider } from "@/lib/mail-data";
 import { AnalysisCriteriaProvider } from "@/lib/analysis-criteria-data";
+import { AddressBookProvider } from "@/lib/contact-book-data";
 import { fakeMailSource } from "@test/utils/test-data";
 import { createMockLocalStorage } from "@test/utils/mock/localStorage";
 
@@ -28,16 +29,19 @@ test("shows the local mock inbox", () => {
 });
 
 test("shows mail search and draft creation controls", async () => {
-    vi.stubGlobal("localStorage", createMockLocalStorage());
+    const mockStorage = createMockLocalStorage();
+    vi.stubGlobal("localStorage", mockStorage);
     const user = userEvent.setup();
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     render(
         <MailDataProvider source={fakeMailSource}>
-            <Router hook={hook} searchHook={searchHook}>
-                <App>
-                    <Home />
-                </App>
-            </Router>
+            <AddressBookProvider>
+                <Router hook={hook} searchHook={searchHook}>
+                    <App>
+                        <Home />
+                    </App>
+                </Router>
+            </AddressBookProvider>
         </MailDataProvider>
     );
     expect(screen.getByRole("heading", { name: "받은메일함" })).toBeVisible();
@@ -49,37 +53,41 @@ test("shows mail search and draft creation controls", async () => {
         screen.getByRole("button", { name: "홍보 초안 작성" })
     ).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /발송 대기/ }));
-    expect(screen.getByRole("heading", { name: "발송대기함" })).toBeVisible();
+    expect(screen.getByText("등록된 그룹이 없습니다.")).toBeVisible();
 });
-
 test("shows sent mailbox with sent status items", async () => {
-    vi.stubGlobal("localStorage", createMockLocalStorage());
+    const mockStorage = createMockLocalStorage();
+    vi.stubGlobal("localStorage", mockStorage);
     const user = userEvent.setup();
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     render(
         <MailDataProvider source={fakeMailSource}>
-            <Router hook={hook} searchHook={searchHook}>
-                <App>
-                    <Home />
-                </App>
-            </Router>
+            <AddressBookProvider>
+                <Router hook={hook} searchHook={searchHook}>
+                    <App>
+                        <Home />
+                    </App>
+                </Router>
+            </AddressBookProvider>
         </MailDataProvider>
     );
     await user.click(screen.getByRole("button", { name: /보낸메일함/ }));
     expect(screen.getByRole("heading", { name: "보낸메일함" })).toBeVisible();
 });
-
 test("opens the filter panel and resets filters", async () => {
-    vi.stubGlobal("localStorage", createMockLocalStorage());
+    const mockStorage = createMockLocalStorage();
+    vi.stubGlobal("localStorage", mockStorage);
     const user = userEvent.setup();
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     render(
         <MailDataProvider source={fakeMailSource}>
-            <Router hook={hook} searchHook={searchHook}>
-                <App>
-                    <Home />
-                </App>
-            </Router>
+            <AddressBookProvider>
+                <Router hook={hook} searchHook={searchHook}>
+                    <App>
+                        <Home />
+                    </App>
+                </Router>
+            </AddressBookProvider>
         </MailDataProvider>
     );
 

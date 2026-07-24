@@ -6,6 +6,7 @@ export const mailStatuses = [
     "ready",
     "failed",
     "reviewed",
+    "dispatched",
     "sent",
 ] as const;
 
@@ -267,3 +268,20 @@ export const FlagMailRequestSchema = z.object({
 });
 
 export type FlagMailRequest = z.infer<typeof FlagMailRequestSchema>;
+
+export const SendReviewedMailRequestSchema = z.object({
+    bcc: z.array(z.string().trim().min(1)).min(1),
+});
+
+export type SendReviewedMailRequest = z.infer<
+    typeof SendReviewedMailRequestSchema
+>;
+
+export const SendReviewedMailResponseSchema = z.object({
+    source: MailApiItemSchema,
+    sent: MailApiItemSchema,
+});
+
+export type SendReviewedMailResponse = z.infer<
+    typeof SendReviewedMailResponseSchema
+>;
