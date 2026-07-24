@@ -7,17 +7,20 @@ import { expect, test, vi } from "vitest";
 import Home from "@/pages/Home";
 import App from "@/App";
 import { MailDataProvider } from "@/lib/mail-data";
+import { AnalysisCriteriaProvider } from "@/lib/analysis-criteria-data";
 import { fakeMailSource } from "@test/utils/test-data";
 import { createMockLocalStorage } from "@test/utils/mock/localStorage";
 
 test("shows the local mock inbox", () => {
     const { hook, searchHook } = memoryLocation({ path: "/inbox" });
     render(
-        <MailDataProvider source={fakeMailSource}>
-            <Router hook={hook} searchHook={searchHook}>
-                <Home />
-            </Router>
-        </MailDataProvider>
+        <AnalysisCriteriaProvider>
+            <MailDataProvider source={fakeMailSource}>
+                <Router hook={hook} searchHook={searchHook}>
+                    <Home />
+                </Router>
+            </MailDataProvider>
+        </AnalysisCriteriaProvider>
     );
     expect(
         screen.getByText("2026학년도 비교과 프로그램 참가자 모집")

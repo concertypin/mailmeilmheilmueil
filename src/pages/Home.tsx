@@ -14,12 +14,8 @@ import {
     loadImapBasicCredentials,
     redirectForInvalidImapCredentials,
 } from "@/lib/imap-basic";
-import {
-    mailCategories,
-    type MailAnalysis,
-    type MailItem,
-} from "@/lib/mail-schema";
-
+import { type MailItem } from "@/lib/mail-schema";
+import { useAnalysisCriteria } from "@/lib/analysis-criteria-data";
 function statusLabel(status: MailItem["status"]): string {
     const labels = {
         queued: "대기 중",
@@ -33,6 +29,8 @@ function statusLabel(status: MailItem["status"]): string {
 }
 
 export default function Home() {
+    const { fields } = useAnalysisCriteria();
+    const categoryField = fields.find((f) => f.isCategory);
     const [selectedMailIds, setSelectedMailIds] = useState<Set<string>>(
         new Set()
     );
@@ -40,9 +38,7 @@ export default function Home() {
     const [senderFilter, setSenderFilter] = useState("");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
-    const [categoryFilter, setCategoryFilter] = useState<
-        "all" | MailAnalysis["category"]
-    >("all");
+    const [categoryFilter, setCategoryFilter] = useState("all");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [promotionDraftMessage, setPromotionDraftMessage] = useState<
         string | null
@@ -179,6 +175,15 @@ export default function Home() {
                 : activeMailbox === "sent"
                   ? "보낸메일함"
                   : "발송대기함";
+    const distinctCategories = [
+        ...new Set(
+            visibleMailItems
+                .map((item) =>
+                    categoryField ? item.analysis?.[categoryField.key] : null
+                )
+                .filter((value): value is string => Boolean(value))
+        ),
+    ].sort();
 
     const filteredMailItems = visibleMailItems.filter((item) => {
         const receivedDate = item.receivedAt
@@ -186,18 +191,18 @@ export default function Home() {
             .toISOString()
             .slice(0, 10);
         const analysis = item.analysis;
+        const searchableValues = analysis
+            ? Object.values(analysis).filter(
+                  (value): value is string =>
+                      typeof value === "string" && value.length > 0
+              )
+            : [];
         const searchableText = [
             item.senderName,
             item.senderAddress,
             item.subject,
             item.textBody,
-            analysis?.category,
-            analysis?.audience,
-            analysis?.schedule,
-            analysis?.applicationDeadline,
-            analysis?.benefits,
-            analysis?.applicationMethod,
-            analysis?.contactOrReference,
+            ...searchableValues,
             ...(analysis?.reviewNotes ?? []),
             item.draft ?? "",
         ]
@@ -213,8 +218,13 @@ export default function Home() {
             item.senderAddress.toLowerCase().includes(senderQuery);
         const matchesDateFrom = dateFrom === "" || receivedDate >= dateFrom;
         const matchesDateTo = dateTo === "" || receivedDate <= dateTo;
+        const categoryValue = categoryField
+            ? analysis?.[categoryField.key]
+            : null;
         const matchesCategory =
-            categoryFilter === "all" || analysis?.category === categoryFilter;
+            categoryFilter === "all" ||
+            (typeof categoryValue === "string" &&
+                categoryValue === categoryFilter);
         return (
             matchesSearch &&
             matchesSender &&
@@ -535,23 +545,22 @@ export default function Home() {
                                             className="select w-full"
                                             onChange={(event) =>
                                                 setCategoryFilter(
-                                                    event.currentTarget
-                                                        .value as
-                                                        | "all"
-                                                        | MailAnalysis["category"]
+                                                    event.currentTarget.value
                                                 )
                                             }
                                             value={categoryFilter}
                                         >
                                             <option value="all">전체</option>
-                                            {mailCategories.map((category) => (
-                                                <option
-                                                    key={category}
-                                                    value={category}
-                                                >
-                                                    {category}
-                                                </option>
-                                            ))}
+                                            {distinctCategories.map(
+                                                (category) => (
+                                                    <option
+                                                        key={category}
+                                                        value={category}
+                                                    >
+                                                        {category}
+                                                    </option>
+                                                )
+                                            )}
                                         </select>
                                     </label>
                                     <div className="card-actions col-span-full mt-1 items-center justify-between border-t border-base-300 pt-4">

@@ -5,6 +5,7 @@ import { memoryLocation } from "wouter/memory-location";
 import { expect, test } from "vitest";
 import MailReview from "@/pages/MailReview";
 import { MailDataProvider } from "@/lib/mail-data";
+import { AnalysisCriteriaProvider } from "@/lib/analysis-criteria-data";
 import { fakeMailSource } from "@test/utils/test-data";
 
 test("omits reply actions from the mail detail view", () => {
@@ -12,11 +13,13 @@ test("omits reply actions from the mail detail view", () => {
         path: "/mails/welcome-mail",
     });
     render(
-        <MailDataProvider source={fakeMailSource}>
-            <Router hook={hook} searchHook={searchHook}>
-                <MailReview />
-            </Router>
-        </MailDataProvider>
+        <AnalysisCriteriaProvider>
+            <MailDataProvider source={fakeMailSource}>
+                <Router hook={hook} searchHook={searchHook}>
+                    <MailReview />
+                </Router>
+            </MailDataProvider>
+        </AnalysisCriteriaProvider>
     );
 
     expect(

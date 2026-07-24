@@ -6,21 +6,13 @@ import {
 } from "ai";
 import { z } from "zod";
 import { type MailItem } from "@/lib/mail-schema";
+import { useAnalysisCriteria } from "@/lib/analysis-criteria-data";
 
 interface MailReviewPanelProps {
     item: MailItem;
     onReview: (promotionDraft: string) => Promise<void>;
     reviewError?: string | null;
 }
-
-const fieldLabels = [
-    ["audience", "대상"],
-    ["schedule", "일정"],
-    ["applicationDeadline", "신청 마감"],
-    ["benefits", "혜택"],
-    ["applicationMethod", "신청 방법"],
-    ["contactOrReference", "문의·참고"],
-] as const;
 
 function displayTimestamp(timestamp: MailItem["receivedAt"]): string {
     return timestamp.toDate().toLocaleString("ko-KR");
@@ -43,6 +35,7 @@ export default function MailReviewPanel({
     onReview,
     reviewError,
 }: MailReviewPanelProps) {
+    const { fields } = useAnalysisCriteria();
     const isPending = item.status === "queued" || item.status === "processing";
     const analysis = item.analysis;
     const canReview = item.status === "ready";
@@ -163,21 +156,38 @@ export default function MailReviewPanel({
                                 </button>
                                 {isAnalysisOpen ? (
                                     <div className="border-t border-base-300 p-6">
-                                        <div className="mb-5">
-                                            <span className="badge badge-secondary">
-                                                {analysis.category}
-                                            </span>
-                                        </div>
+                                        {(() => {
+                                            const categoryField = fields.find(
+                                                (f) => f.isCategory
+                                            );
+                                            const categoryValue =
+                                                categoryField &&
+                                                analysis[categoryField.key];
+                                            return categoryValue ? (
+                                                <div className="mb-5">
+                                                    <span className="badge badge-secondary">
+                                                        {typeof categoryValue ===
+                                                        "string"
+                                                            ? categoryValue
+                                                            : null}
+                                                    </span>
+                                                </div>
+                                            ) : null;
+                                        })()}
                                         <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2">
-                                            {fieldLabels.map(([key, label]) => {
-                                                const value = analysis[key];
+                                            {fields.map((field) => {
+                                                const value =
+                                                    analysis[field.key];
                                                 return (
-                                                    <div key={key}>
+                                                    <div key={field.key}>
                                                         <dt className="font-semibold">
-                                                            {label}
+                                                            {field.label}
                                                         </dt>
                                                         <dd className="mt-1 text-base-content/70">
-                                                            {value ?? (
+                                                            {typeof value ===
+                                                            "string" ? (
+                                                                value
+                                                            ) : (
                                                                 <span className="text-warning">
                                                                     확인 필요
                                                                 </span>

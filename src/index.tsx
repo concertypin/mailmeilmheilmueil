@@ -11,6 +11,7 @@ import Contacts from "@/pages/Contacts";
 import Compose from "@/pages/Compose";
 import Landing from "@/pages/Landing";
 import MailReview from "@/pages/MailReview";
+import Settings from "@/pages/Settings";
 
 const root = document.getElementById("root");
 
@@ -37,6 +38,11 @@ createRoot(root!).render(
                     <Route path="/compose">
                         <App>
                             <Compose />
+                        </App>
+                    </Route>
+                    <Route path="/settings">
+                        <App>
+                            <Settings />
                         </App>
                     </Route>
                     <Route path="/mails/:mailId">
