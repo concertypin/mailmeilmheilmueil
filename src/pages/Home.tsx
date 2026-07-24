@@ -6,6 +6,7 @@ import {
     MagnifyingGlassIcon,
     PencilSimpleIcon,
     StarIcon,
+    GaugeIcon,
 } from "@phosphor-icons/react";
 import { Link, useSearchParams } from "wouter";
 import { useMailData } from "@/lib/mail-data";
@@ -241,6 +242,15 @@ export default function Home() {
 
                     <nav className="mt-5">
                         <ul className="menu w-full gap-1 p-0 text-sm">
+                            <li>
+                                <Link
+                                    className="flex items-center gap-3"
+                                    href="/dashboard"
+                                >
+                                    <GaugeIcon aria-hidden="true" size={18} />
+                                    대시보드
+                                </Link>
+                            </li>
                             <li>
                                 <button
                                     className={
