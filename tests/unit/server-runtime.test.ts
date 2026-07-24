@@ -79,7 +79,9 @@ describe("AI analysis provider configuration", () => {
         expect(analysisConfigFromEnv(environment)).toEqual({
             apiKey: "ai-key",
             baseUrl: "https://gateway.example/v1",
-            model: "gateway-model",
+            analysisModel: "gateway-model",
+            draftModel: "gateway-model",
+            collabModel: "gateway-model",
             provider: "openai",
         });
     });
@@ -93,7 +95,6 @@ describe("AI analysis provider configuration", () => {
 
             expect(analysisConfigFromEnv(environment)).toMatchObject({
                 apiKey: "openai-key",
-                model: "gpt-5.4-mini",
                 provider: "openai",
             });
         }
@@ -103,7 +104,9 @@ describe("AI analysis provider configuration", () => {
         expect(analysisConfigFromEnv({})).toEqual({
             apiKey: undefined,
             baseUrl: undefined,
-            model: "gpt-5.4-mini",
+            analysisModel: "gpt-5.4-mini",
+            draftModel: "gpt-5.4-mini",
+            collabModel: "gpt-5.4-mini",
             provider: "codex",
         });
     });

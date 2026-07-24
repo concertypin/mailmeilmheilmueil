@@ -1,17 +1,23 @@
 import { type MailAnalysis, type MailItem } from "../../src/lib/mail-schema";
 import { firestoreRepository, now, type MailRepository } from "./repository";
-import { analyzeMail } from "./analysis";
+import { analyzeMail, generateDraft } from "./analysis";
 
 export type MailAnalyzer = (item: MailItem) => Promise<MailAnalysis>;
+
+export type DraftGenerator = (
+    item: MailItem,
+    analysis: MailAnalysis
+) => Promise<string>;
 
 export const AI_FAILURE_MESSAGE =
     "AI 분석에 실패했습니다. 테스트 메일을 다시 보내 주세요.";
 
-/** Process one queued mail and retain the original when analysis fails. */
+/** Process one queued mail: analyze → generate draft → update repository. */
 export async function processMailItem(
     id: string,
     repository: MailRepository = firestoreRepository,
-    analyzer: MailAnalyzer = analyzeMail
+    analyzer: MailAnalyzer = analyzeMail,
+    draftGenerator: DraftGenerator = generateDraft
 ): Promise<"ready" | "failed"> {
     const item = await repository.get(id);
     if (!item) {
@@ -27,6 +33,12 @@ export async function processMailItem(
             status: "ready",
             failureMessage: null,
         });
+        // Generate draft separately (fire-and-forget non-critical)
+        draftGenerator(item, analysis)
+            .then((draft) =>
+                repository.update(id, { draft }).catch(() => undefined)
+            )
+            .catch(() => undefined);
         return "ready";
     } catch (error: unknown) {
         const message =
